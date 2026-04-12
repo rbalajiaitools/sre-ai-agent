@@ -7,7 +7,7 @@ import { AppLayout } from '@/components/shared/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { OnboardingPage } from '@/pages/OnboardingPage';
 import { ChatPage } from '@/features/chat/components/ChatPage';
-import { IncidentsPage } from '@/pages/IncidentsPage';
+import { IncidentsPage } from '@/features/incidents/components/IncidentsPage';
 import { InvestigationsPage } from '@/pages/InvestigationsPage';
 import { TopologyPage } from '@/pages/TopologyPage';
 import { DashboardPage } from '@/pages/DashboardPage';

@@ -1,5 +1,5 @@
 /**
- * Incidents API functions
+ * Incidents API functions (legacy - use features/incidents/api.ts)
  */
 import { api } from './client';
 import { Incident } from '@/types';
