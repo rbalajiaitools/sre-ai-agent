@@ -11,7 +11,7 @@ import { IncidentsPage } from '@/features/incidents/components/IncidentsPage';
 import { InvestigationsPage } from '@/features/investigations/components/InvestigationsPage';
 import { InvestigationDetailPage } from '@/features/investigations/components/InvestigationDetailPage';
 import { TopologyPage } from '@/features/topology/components/TopologyPage';
-import { DashboardPage } from '@/pages/DashboardPage';
+import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 
 /**
