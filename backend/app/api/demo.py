@@ -546,16 +546,16 @@ async def get_topology_graph(tenant_id: str = Query(...)):
     """Get topology graph."""
     return {
         "nodes": [
-            {"id": "svc-001", "name": "payment-service", "type": "service", "status": "degraded"},
-            {"id": "svc-002", "name": "api-gateway", "type": "service", "status": "down"},
-            {"id": "svc-003", "name": "auth-service", "type": "service", "status": "healthy"},
-            {"id": "db-001", "name": "postgres-primary", "type": "database", "status": "healthy"},
-            {"id": "cache-001", "name": "redis-cache", "type": "cache", "status": "healthy"},
+            {"id": "svc-001", "name": "payment-service", "type": "service", "provider": "aws", "status": "degraded"},
+            {"id": "svc-002", "name": "api-gateway", "type": "service", "provider": "aws", "status": "down"},
+            {"id": "svc-003", "name": "auth-service", "type": "service", "provider": "aws", "status": "healthy"},
+            {"id": "db-001", "name": "postgres-primary", "type": "database", "provider": "aws", "status": "healthy"},
+            {"id": "cache-001", "name": "redis-cache", "type": "cache", "provider": "aws", "status": "healthy"},
         ],
         "edges": [
-            {"source": "svc-002", "target": "svc-001", "type": "depends_on"},
-            {"source": "svc-002", "target": "svc-003", "type": "depends_on"},
-            {"source": "svc-001", "target": "db-001", "type": "depends_on"},
-            {"source": "svc-001", "target": "cache-001", "type": "depends_on"},
+            {"id": "edge-1", "source": "svc-002", "target": "svc-001", "relationship": "DEPENDS_ON"},
+            {"id": "edge-2", "source": "svc-002", "target": "svc-003", "relationship": "DEPENDS_ON"},
+            {"id": "edge-3", "source": "svc-001", "target": "db-001", "relationship": "DEPENDS_ON"},
+            {"id": "edge-4", "source": "svc-001", "target": "cache-001", "relationship": "DEPENDS_ON"},
         ],
     }
