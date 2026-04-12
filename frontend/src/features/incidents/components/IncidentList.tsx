@@ -1,7 +1,7 @@
 /**
  * Incident List - virtualized list of incidents
  */
-import { FixedSizeList } from 'react-window';
+import { List } from 'react-window';
 import { Loader2 } from 'lucide-react';
 import { ServiceNowIncident } from '../types';
 import { IncidentRow } from './IncidentRow';
@@ -82,13 +82,13 @@ export function IncidentList({
   };
 
   return (
-    <FixedSizeList
+    <List
       height={height}
-      itemCount={sortedIncidents.length}
-      itemSize={88}
+      rowCount={sortedIncidents.length}
+      rowHeight={88}
       width="100%"
-    >
-      {Row}
-    </FixedSizeList>
+      rowComponent={Row}
+      rowProps={{}}
+    />
   );
 }
