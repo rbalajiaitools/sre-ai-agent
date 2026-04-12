@@ -206,50 +206,119 @@ async def get_investigation(investigation_id: str):
         **investigation,
         "agent_results": [
             {
-                "agent_name": "Logs Agent",
-                "status": "completed",
-                "findings": "Found connection pool exhaustion errors in application logs",
-                "evidence_count": 15,
+                "agent_type": "Logs Agent",
+                "success": True,
+                "analysis": {
+                    "findings": "Found connection pool exhaustion errors in application logs",
+                    "evidence_count": 15,
+                },
+                "evidence": [
+                    "2026-04-12 16:00:15 ERROR [payment-service] Connection timeout after 30s",
+                    "2026-04-12 16:05:22 ERROR [payment-service] Failed to acquire connection from pool",
+                    "2026-04-12 16:10:45 ERROR [payment-service] Connection pool exhausted, max size: 100",
+                    "2026-04-12 16:15:33 ERROR [payment-service] Database connection leak detected in error handler",
+                    "2026-04-12 16:20:11 ERROR [payment-service] Connection not properly closed in exception path",
+                ],
                 "duration_seconds": 45,
+                "providers_queried": ["CloudWatch Logs", "Application Logs"],
+                "error": None,
             },
             {
-                "agent_name": "Metrics Agent",
-                "status": "completed",
-                "findings": "Database connection count reached maximum limit of 100",
-                "evidence_count": 8,
+                "agent_type": "Metrics Agent",
+                "success": True,
+                "analysis": {
+                    "findings": "Database connection count reached maximum limit of 100",
+                    "evidence_count": 8,
+                },
+                "evidence": [
+                    "Database connection pool utilization: 100% (100/100 connections)",
+                    "Average connection wait time: 5.2 seconds",
+                    "Connection timeout rate: 15% (increased from 0.1%)",
+                    "Active connections holding time: avg 45s (normal: 2s)",
+                    "Connection leak rate: 2 connections/minute",
+                ],
                 "duration_seconds": 30,
+                "providers_queried": ["CloudWatch Metrics", "RDS Performance Insights"],
+                "error": None,
+            },
+            {
+                "agent_type": "Infrastructure Agent",
+                "success": True,
+                "analysis": {
+                    "findings": "No infrastructure changes detected in the last 24 hours",
+                    "evidence_count": 3,
+                },
+                "evidence": [
+                    "RDS instance: db.r5.large, CPU: 45%, Memory: 62% (normal)",
+                    "Application instances: 5 healthy, 0 unhealthy",
+                    "No recent deployments or configuration changes",
+                ],
+                "duration_seconds": 20,
+                "providers_queried": ["AWS CloudFormation", "AWS Systems Manager"],
+                "error": None,
             },
         ],
-        "rca_output": {
+        "rca": {
             "root_cause": "Database connection pool exhausted due to connection leak in payment processing code",
             "confidence": 0.92,
-            "timeline": [
+            "incident_timeline": [
                 {
                     "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
                     "event": "Connection pool utilization started increasing",
                     "source": "Metrics",
+                    "severity": "medium",
+                },
+                {
+                    "timestamp": (datetime.now() - timedelta(minutes=45)).isoformat(),
+                    "event": "First connection timeout errors logged",
+                    "source": "Logs",
+                    "severity": "high",
+                },
+                {
+                    "timestamp": (datetime.now() - timedelta(minutes=30)).isoformat(),
+                    "event": "Service latency exceeded SLA threshold",
+                    "source": "Monitoring",
+                    "severity": "critical",
                 },
             ],
             "affected_resources": [
-                {"name": "payment-service", "type": "service", "provider": "AWS", "status": "degraded"},
+                "payment-service",
+                "postgres-primary",
             ],
             "contributing_factors": [
                 "Missing connection.close() in error handling path",
+                "Connection pool size not configured for peak load",
+                "No connection leak detection enabled",
+            ],
+            "supporting_evidence": [
+                "Found 15 connection timeout errors in application logs",
+                "Database connection count reached maximum limit of 100",
+                "Connection pool utilization at 100% for 45 minutes",
             ],
         },
-        "resolution_output": {
-            "recommended_fix": "Add proper connection cleanup in error handlers",
+        "resolution": {
+            "recommended_fix": "Add proper connection cleanup in error handlers and increase connection pool size",
             "fix_steps": [
+                "Review and fix connection handling in error paths",
+                "Add try-finally blocks to ensure connection.close() is called",
+                "Increase connection pool size from 100 to 150",
+                "Enable connection leak detection",
                 "Deploy hotfix with connection cleanup",
-                "Restart payment service pods",
+                "Restart payment service pods with rolling update",
             ],
             "commands": [
+                "kubectl set env deployment/payment-service DB_POOL_SIZE=150",
                 "kubectl rollout restart deployment/payment-service",
             ],
             "estimated_impact": "Low - rolling restart with zero downtime",
             "requires_human_approval": True,
-            "approved": False,
+            "snow_work_note": "RCA: Database connection pool exhausted due to connection leak. Fix: Added proper connection cleanup in error handlers and increased pool size.",
         },
+        "tenant_id": "tenant-001",
+        "service_name": "payment-service",
+        "selected_agents": ["Logs Agent", "Metrics Agent", "Infrastructure Agent"],
+        "approved_by": None,
+        "approved_at": None,
     }
 
 
