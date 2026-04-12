@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import { ChatMessage, RCAResult } from '../../types';
 import { cn } from '@/lib/utils';
+import { confidenceColors } from '@/lib/colors';
 
 interface RCAResultMessageProps {
   message: ChatMessage;
@@ -17,12 +18,12 @@ export function RCAResultMessage({ message }: RCAResultMessageProps) {
 
   const getConfidenceBadge = (confidence: number) => {
     if (confidence >= 0.8) {
-      return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      return confidenceColors.high;
     }
     if (confidence >= 0.5) {
-      return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+      return confidenceColors.medium;
     }
-    return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+    return confidenceColors.low;
   };
 
   return (

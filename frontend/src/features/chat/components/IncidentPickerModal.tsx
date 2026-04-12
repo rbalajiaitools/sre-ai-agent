@@ -16,6 +16,7 @@ import { Incident, IncidentPriority } from '@/types';
 import { getIncidents } from '@/api/incidents';
 import { useTenant } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
+import { priorityColors } from '@/lib/colors';
 
 interface IncidentPickerModalProps {
   open: boolean;
@@ -31,7 +32,7 @@ export function IncidentPickerModal({
   const [searchQuery, setSearchQuery] = useState('');
   const tenant = useTenant();
 
-  const { data: incidents, isLoading, refetch, isRefetching } = useQuery({
+  const { data: incidents, isLoading, refetch, isRefetching, isError } = useQuery({
     queryKey: ['incidents', tenant?.id],
     queryFn: () => getIncidents(tenant!.id),
     enabled: !!tenant && open,
@@ -51,16 +52,8 @@ export function IncidentPickerModal({
   };
 
   const getPriorityColor = (priority: IncidentPriority) => {
-    switch (priority) {
-      case IncidentPriority.P1:
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case IncidentPriority.P2:
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-      case IncidentPriority.P3:
-        return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-    }
+    const key = `p${priority}` as keyof typeof priorityColors;
+    return priorityColors[key] || priorityColors.p4;
   };
 
   return (
@@ -104,6 +97,10 @@ export function IncidentPickerModal({
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+            </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+              Failed to load incidents. Please try again.
             </div>
           ) : filteredIncidents && filteredIncidents.length > 0 ? (
             <div className="divide-y">

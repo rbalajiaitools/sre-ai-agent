@@ -3,6 +3,8 @@
  */
 import { PlayCircle } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import { cn } from '@/lib/utils';
+import { statusColors } from '@/lib/colors';
 
 interface InvestigationStartMessageProps {
   message: ChatMessage;
@@ -17,17 +19,17 @@ export function InvestigationStartMessage({
   };
 
   return (
-    <div className="rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800 p-4">
+    <div className={cn('rounded-lg border p-4', statusColors.info.bg, statusColors.info.border)}>
       <div className="flex items-start gap-3">
         <PlayCircle
-          className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5"
+          className={cn('h-5 w-5 mt-0.5', statusColors.info.icon)}
           aria-hidden="true"
         />
         <div className="flex-1">
-          <p className="font-medium text-blue-900 dark:text-blue-100">
+          <p className={cn('font-medium', statusColors.info.text)}>
             Investigation started
           </p>
-          <div className="mt-2 space-y-1 text-sm text-blue-800 dark:text-blue-200">
+          <div className={cn('mt-2 space-y-1 text-sm', statusColors.info.textMuted)}>
             {incident_number && (
               <div>
                 <span className="font-medium">Incident:</span> {incident_number}
@@ -39,7 +41,7 @@ export function InvestigationStartMessage({
               </div>
             )}
           </div>
-          <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+          <p className={cn('text-xs mt-2', statusColors.info.textMuted)}>
             {new Date(message.created_at).toLocaleString()}
           </p>
         </div>

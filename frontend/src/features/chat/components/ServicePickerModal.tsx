@@ -24,7 +24,7 @@ export function ServicePickerModal({
   onSelect,
 }: ServicePickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: services, isLoading } = useServices();
+  const { data: services, isLoading, isError } = useServices();
 
   const filteredServices = services?.filter((service) =>
     service.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -62,6 +62,10 @@ export function ServicePickerModal({
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-label="Loading" />
+            </div>
+          ) : isError ? (
+            <div className="flex items-center justify-center h-32 text-sm text-muted-foreground">
+              Failed to load services. Please try again.
             </div>
           ) : filteredServices && filteredServices.length > 0 ? (
             <div className="divide-y">

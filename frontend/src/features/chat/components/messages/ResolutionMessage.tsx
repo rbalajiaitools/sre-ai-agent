@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useApproveResolution } from '../../hooks';
 import { useUser } from '@/stores/authStore';
 import { cn } from '@/lib/utils';
+import { statusColors } from '@/lib/colors';
 
 interface ResolutionMessageProps {
   message: ChatMessage;
@@ -41,7 +42,7 @@ export function ResolutionMessage({ message }: ResolutionMessageProps) {
       {/* Header */}
       <div className="flex items-start gap-3 mb-4">
         <CheckCircle2
-          className="h-6 w-6 text-green-600 dark:text-green-400 mt-0.5"
+          className={cn('h-6 w-6 mt-0.5', statusColors.success.icon)}
           aria-hidden="true"
         />
         <div>
@@ -85,7 +86,7 @@ export function ResolutionMessage({ message }: ResolutionMessageProps) {
                   aria-label="Copy command"
                 >
                   {copiedIndex === index ? (
-                    <CheckCircle2 className="h-4 w-4 text-green-600" aria-hidden="true" />
+                    <CheckCircle2 className={cn('h-4 w-4', statusColors.success.icon)} aria-hidden="true" />
                   ) : (
                     <Copy className="h-4 w-4" aria-hidden="true" />
                   )}
@@ -119,21 +120,37 @@ export function ResolutionMessage({ message }: ResolutionMessageProps) {
             </Button>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-start gap-2 p-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+              <div className={cn('flex items-start gap-2 p-3 rounded-md border', statusColors.warning.bg, statusColors.warning.border)}>
                 <AlertTriangle
-                  className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5"
+                  className={cn('h-5 w-5 mt-0.5', statusColors.warning.icon)}
                   aria-hidden="true"
                 />
                 <div className="flex-1 text-sm">
-                  <p className="font-medium text-amber-900 dark:text-amber-100">
+                  <p className={cn('font-medium', statusColors.warning.text)}>
                     Confirm Approval
                   </p>
-                  <p className="text-amber-800 dark:text-amber-200 mt-1">
+                  <p className={cn('mt-1', statusColors.warning.textMuted)}>
                     This will post the resolution to ServiceNow and close the
                     ticket. This action cannot be undone.
                   </p>
                 </div>
               </div>
+              {approveMutation.isError && (
+                <div className={cn('flex items-start gap-2 p-3 rounded-md border', statusColors.error.bg, statusColors.error.border)}>
+                  <AlertTriangle
+                    className={cn('h-5 w-5 mt-0.5', statusColors.error.icon)}
+                    aria-hidden="true"
+                  />
+                  <div className="flex-1 text-sm">
+                    <p className={cn('font-medium', statusColors.error.text)}>
+                      Approval Failed
+                    </p>
+                    <p className={cn('mt-1', statusColors.error.textMuted)}>
+                      Failed to approve resolution. Please try again.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   onClick={handleApprove}
@@ -158,16 +175,16 @@ export function ResolutionMessage({ message }: ResolutionMessageProps) {
       {/* Approved State */}
       {resolution.approved && (
         <div className="border-t pt-4">
-          <div className="flex items-center gap-2 p-3 rounded-md bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
+          <div className={cn('flex items-center gap-2 p-3 rounded-md border', statusColors.success.bg, statusColors.success.border)}>
             <CheckCircle2
-              className="h-5 w-5 text-green-600 dark:text-green-400"
+              className={cn('h-5 w-5', statusColors.success.icon)}
               aria-hidden="true"
             />
             <div className="flex-1">
-              <p className="font-medium text-green-900 dark:text-green-100">
+              <p className={cn('font-medium', statusColors.success.text)}>
                 Ticket Closed
               </p>
-              <p className="text-sm text-green-800 dark:text-green-200 mt-1">
+              <p className={cn('text-sm mt-1', statusColors.success.textMuted)}>
                 Approved by {resolution.approved_by} on{' '}
                 {resolution.approved_at &&
                   new Date(resolution.approved_at).toLocaleString()}

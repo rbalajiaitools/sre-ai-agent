@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Loader2, CheckCircle2, XCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { ChatMessage, AgentSummary } from '../../types';
 import { cn } from '@/lib/utils';
+import { statusColors } from '@/lib/colors';
 
 interface AgentProgressMessageProps {
   message: ChatMessage;
@@ -37,11 +38,11 @@ export function AgentProgressMessage({ message }: AgentProgressMessageProps) {
   const getStatusIcon = (status: AgentSummary['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" aria-label="Completed" />;
+        return <CheckCircle2 className={cn('h-4 w-4', statusColors.success.icon)} aria-label="Completed" />;
       case 'failed':
-        return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" aria-label="Failed" />;
+        return <XCircle className={cn('h-4 w-4', statusColors.error.icon)} aria-label="Failed" />;
       default:
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" aria-label="Running" />;
+        return <Loader2 className={cn('h-4 w-4 animate-spin', statusColors.info.icon)} aria-label="Running" />;
     }
   };
 
@@ -89,7 +90,7 @@ export function AgentProgressMessage({ message }: AgentProgressMessageProps) {
               <div className="space-y-2">
                 {agents_running.map((agent) => (
                   <div key={agent} className="flex items-center gap-2 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                    <Loader2 className={cn('h-4 w-4 animate-spin', statusColors.info.icon)} aria-hidden="true" />
                     <span>{agent}</span>
                   </div>
                 ))}

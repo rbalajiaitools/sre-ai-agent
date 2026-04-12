@@ -3,6 +3,8 @@
  */
 import { AlertTriangle } from 'lucide-react';
 import { ChatMessage } from '../../types';
+import { cn } from '@/lib/utils';
+import { statusColors } from '@/lib/colors';
 
 interface ErrorMessageProps {
   message: ChatMessage;
@@ -15,25 +17,25 @@ export function ErrorMessage({ message }: ErrorMessageProps) {
   };
 
   return (
-    <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 p-4">
+    <div className={cn('rounded-lg border p-4', statusColors.error.bg, statusColors.error.border)}>
       <div className="flex items-start gap-3">
         <AlertTriangle
-          className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5"
+          className={cn('h-5 w-5 mt-0.5', statusColors.error.icon)}
           aria-hidden="true"
         />
         <div className="flex-1">
-          <p className="font-medium text-red-900 dark:text-red-100">
+          <p className={cn('font-medium', statusColors.error.text)}>
             Error
           </p>
-          <p className="text-sm text-red-800 dark:text-red-200 mt-1">
+          <p className={cn('text-sm mt-1', statusColors.error.textMuted)}>
             {error_message || message.content}
           </p>
           {suggested_action && (
-            <div className="mt-3 pt-3 border-t border-red-200 dark:border-red-800">
-              <p className="text-xs font-medium text-red-900 dark:text-red-100 mb-1">
+            <div className={cn('mt-3 pt-3 border-t', statusColors.error.border)}>
+              <p className={cn('text-xs font-medium mb-1', statusColors.error.text)}>
                 Suggested Action
               </p>
-              <p className="text-sm text-red-800 dark:text-red-200">
+              <p className={cn('text-sm', statusColors.error.textMuted)}>
                 {suggested_action}
               </p>
             </div>

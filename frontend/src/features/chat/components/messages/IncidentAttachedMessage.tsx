@@ -5,6 +5,7 @@ import { X, AlertCircle } from 'lucide-react';
 import { ChatMessage } from '../../types';
 import { Incident, IncidentPriority } from '@/types';
 import { cn } from '@/lib/utils';
+import { priorityColors } from '@/lib/colors';
 
 interface IncidentAttachedMessageProps {
   message: ChatMessage;
@@ -18,16 +19,8 @@ export function IncidentAttachedMessage({
   const incident = message.metadata.incident as Incident;
 
   const getPriorityColor = (priority: IncidentPriority) => {
-    switch (priority) {
-      case IncidentPriority.P1:
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case IncidentPriority.P2:
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
-      case IncidentPriority.P3:
-        return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
-    }
+    const key = `p${priority}` as keyof typeof priorityColors;
+    return priorityColors[key] || priorityColors.p4;
   };
 
   return (
