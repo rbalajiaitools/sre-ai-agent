@@ -100,6 +100,14 @@ export function AWSProviderForm({ onValidated }: AWSProviderFormProps) {
             isValidating={validate.isPending}
           />
 
+          {generateTf.isError && (
+            <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4" role="alert">
+              <p className="text-sm text-red-500">
+                Failed to generate Terraform code: {generateTf.error?.message || 'Unknown error'}
+              </p>
+            </div>
+          )}
+
           <ValidationResultCard
             result={validate.data || null}
             isLoading={validate.isPending}

@@ -47,9 +47,10 @@ export function CompleteStep({ providers, discoveryResult }: CompleteStepProps) 
         <button
           onClick={() => navigate('/incidents')}
           className="flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary"
+          aria-label="View your incidents"
         >
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/10">
-            <AlertCircle className="h-5 w-5 text-blue-500" />
+            <AlertCircle className="h-5 w-5 text-blue-500" aria-hidden="true" />
           </div>
           <div className="flex-1">
             <h4 className="font-medium">View Your Incidents</h4>
@@ -62,9 +63,10 @@ export function CompleteStep({ providers, discoveryResult }: CompleteStepProps) 
         <button
           onClick={() => navigate('/chat')}
           className="flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary"
+          aria-label="Start a chat with AI agent"
         >
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-green-500/10">
-            <MessageSquare className="h-5 w-5 text-green-500" />
+            <MessageSquare className="h-5 w-5 text-green-500" aria-hidden="true" />
           </div>
           <div className="flex-1">
             <h4 className="font-medium">Start a Chat</h4>
@@ -77,9 +79,10 @@ export function CompleteStep({ providers, discoveryResult }: CompleteStepProps) 
         <button
           onClick={() => navigate('/topology')}
           className="flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary"
+          aria-label="Explore your service map"
         >
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-purple-500/10">
-            <Network className="h-5 w-5 text-purple-500" />
+            <Network className="h-5 w-5 text-purple-500" aria-hidden="true" />
           </div>
           <div className="flex-1">
             <h4 className="font-medium">Explore Your Service Map</h4>

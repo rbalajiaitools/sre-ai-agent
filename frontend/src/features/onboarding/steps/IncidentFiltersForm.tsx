@@ -57,7 +57,7 @@ export function IncidentFiltersForm({
     <>
       <div className="space-y-2">
         <Label>Incident Priorities to Monitor</Label>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Select incident priorities">
           {[
             IncidentPriority.P1,
             IncidentPriority.P2,
@@ -73,6 +73,8 @@ export function IncidentFiltersForm({
                   ? 'border-primary bg-primary text-primary-foreground'
                   : 'border-input bg-background hover:bg-muted'
               }`}
+              aria-pressed={priorities.includes(priority)}
+              aria-label={`Priority ${priority}`}
             >
               P{priority}
             </button>

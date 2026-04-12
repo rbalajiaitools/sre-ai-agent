@@ -2,7 +2,8 @@
  * Discovery step - scans infrastructure
  */
 import { useEffect } from 'react';
-import { CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useTriggerDiscovery, useDiscoveryStatus } from '../hooks';
 import type { DiscoveryResult } from '../types';
 
@@ -28,6 +29,37 @@ export function DiscoverStep({ onComplete }: DiscoverStepProps) {
       onComplete(discoveryStatus.data.result);
     }
   }, [discoveryStatus.data, onComplete]);
+
+  // Handle trigger discovery errors
+  if (triggerDiscovery.isError) {
+    return (
+      <div className="space-y-4 py-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10">
+          <XCircle className="h-8 w-8 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-bold">Failed to Start Discovery</h2>
+        <p className="text-muted-foreground">
+          {triggerDiscovery.error?.message || 'Unable to start infrastructure discovery'}
+        </p>
+        <Button onClick={() => triggerDiscovery.mutate()} variant="outline">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  // Handle loading state while triggering discovery
+  if (triggerDiscovery.isPending) {
+    return (
+      <div className="space-y-4 py-8 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold">Starting Discovery</h2>
+        <p className="text-muted-foreground">Initializing infrastructure scan...</p>
+      </div>
+    );
+  }
 
   const status = discoveryStatus.data?.status || 'pending';
 
@@ -58,15 +90,17 @@ export function DiscoverStep({ onComplete }: DiscoverStepProps) {
           <div
             key={step.key}
             className="flex items-center gap-3 rounded-lg border bg-card p-4"
+            role="status"
+            aria-label={`${step.label} - ${step.active ? 'in progress' : 'pending'}`}
           >
             {step.active ? (
               status === 'complete' ? (
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                <CheckCircle2 className="h-5 w-5 text-green-500" aria-hidden="true" />
               ) : (
-                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <Loader2 className="h-5 w-5 animate-spin text-primary" aria-hidden="true" />
               )
             ) : (
-              <div className="h-5 w-5 rounded-full border-2 border-muted" />
+              <div className="h-5 w-5 rounded-full border-2 border-muted" aria-hidden="true" />
             )}
             <span className={step.active ? 'font-medium' : 'text-muted-foreground'}>
               {step.label}
@@ -76,9 +110,9 @@ export function DiscoverStep({ onComplete }: DiscoverStepProps) {
       </div>
 
       {discoveryStatus.isError && (
-        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-center">
+        <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-4 text-center" role="alert">
           <p className="text-sm text-red-500">
-            Discovery failed. Please try again or contact support.
+            {discoveryStatus.error?.message || 'Discovery failed. Please try again or contact support.'}
           </p>
         </div>
       )}
@@ -101,14 +135,18 @@ function DiscoveryResultCard({ result }: { result: DiscoveryResult }) {
 
       <div className="rounded-lg border bg-card p-6">
         <h3 className="font-semibold">Resource Breakdown</h3>
-        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-          {Object.entries(result.resource_breakdown).map(([type, count]) => (
-            <div key={type} className="rounded-lg border bg-muted/50 p-3">
-              <p className="text-2xl font-bold">{count}</p>
-              <p className="text-sm text-muted-foreground">{type}</p>
-            </div>
-          ))}
-        </div>
+        {Object.keys(result.resource_breakdown).length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No resources discovered yet</p>
+        ) : (
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+            {Object.entries(result.resource_breakdown).map(([type, count]) => (
+              <div key={type} className="rounded-lg border bg-muted/50 p-3">
+                <p className="text-2xl font-bold">{count}</p>
+                <p className="text-sm text-muted-foreground">{type}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {result.sample_services.length > 0 && (

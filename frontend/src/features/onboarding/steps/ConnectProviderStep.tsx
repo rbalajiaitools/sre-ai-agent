@@ -122,15 +122,16 @@ export function ConnectProviderStep({ providers, onProviderAdded }: ConnectProvi
             <button
               key={provider.type}
               onClick={() => setSelectedProvider(provider.type)}
-              className="relative rounded-lg border bg-card p-6 text-left transition-colors hover:border-primary"
+              className="relative rounded-lg border bg-card p-6 text-left transition-colors hover:border-primary disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isConnected}
+              aria-label={`${isConnected ? 'Already connected to' : 'Configure'} ${provider.name}`}
             >
               {isConnected && (
                 <div className="absolute right-4 top-4">
-                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <CheckCircle2 className="h-5 w-5 text-green-500" aria-hidden="true" />
                 </div>
               )}
-              <Icon className="h-8 w-8 text-primary" />
+              <Icon className="h-8 w-8 text-primary" aria-hidden="true" />
               <h3 className="mt-4 font-semibold">{provider.name}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{provider.description}</p>
               <div className="mt-4">

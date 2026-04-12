@@ -101,44 +101,48 @@ export function OnboardingPage() {
       {/* Progress Stepper */}
       <div className="border-b bg-card">
         <div className="mx-auto max-w-5xl px-6 py-6">
-          <div className="flex items-center justify-between">
-            {STEPS.map((step, index) => {
-              const isActive = index === currentStepIndex;
-              const isComplete = index < currentStepIndex;
+          <nav aria-label="Onboarding progress">
+            <ol className="flex items-center justify-between">
+              {STEPS.map((step, index) => {
+                const isActive = index === currentStepIndex;
+                const isComplete = index < currentStepIndex;
 
-              return (
-                <div key={step.key} className="flex flex-1 items-center">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors ${
-                        isComplete
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : isActive
-                          ? 'border-primary bg-background text-primary'
-                          : 'border-muted bg-background text-muted-foreground'
-                      }`}
-                    >
-                      {isComplete ? <Check className="h-4 w-4" /> : index + 1}
+                return (
+                  <li key={step.key} className="flex flex-1 items-center">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors ${
+                          isComplete
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : isActive
+                            ? 'border-primary bg-background text-primary'
+                            : 'border-muted bg-background text-muted-foreground'
+                        }`}
+                        aria-current={isActive ? 'step' : undefined}
+                      >
+                        {isComplete ? <Check className="h-4 w-4" /> : index + 1}
+                      </div>
+                      <span
+                        className={`hidden text-sm md:inline ${
+                          isActive ? 'font-medium' : 'text-muted-foreground'
+                        }`}
+                      >
+                        {step.label}
+                      </span>
                     </div>
-                    <span
-                      className={`hidden text-sm md:inline ${
-                        isActive ? 'font-medium' : 'text-muted-foreground'
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                  {index < STEPS.length - 1 && (
-                    <div
-                      className={`mx-2 h-0.5 flex-1 ${
-                        isComplete ? 'bg-primary' : 'bg-muted'
-                      }`}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {index < STEPS.length - 1 && (
+                      <div
+                        className={`mx-2 h-0.5 flex-1 ${
+                          isComplete ? 'bg-primary' : 'bg-muted'
+                        }`}
+                        aria-hidden="true"
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
         </div>
       </div>
 
