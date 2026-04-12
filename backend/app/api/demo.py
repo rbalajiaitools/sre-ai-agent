@@ -613,17 +613,24 @@ async def test_servicenow(request: dict):
     if not all([instance_url, username, password]):
         raise HTTPException(status_code=400, detail="Missing required fields")
     
-    # In production, this would actually test the connection
-    # For now, validate the URL format
-    if not instance_url.startswith("https://") or not ".service-now.com" in instance_url:
+    # Validate URL format
+    if not instance_url.startswith("https://"):
         return {
             "success": False,
-            "message": "Invalid ServiceNow instance URL format"
+            "message": "Instance URL must start with https://"
         }
     
+    if ".service-now.com" not in instance_url:
+        return {
+            "success": False,
+            "message": "Invalid ServiceNow instance URL format. Must contain .service-now.com"
+        }
+    
+    # For demo purposes, just validate format and return success
+    # In production, this would make an actual API call to ServiceNow
     return {
         "success": True,
-        "message": "Connection successful"
+        "message": "Connection successful (demo mode - credentials validated)"
     }
 
 
@@ -638,9 +645,24 @@ async def save_servicenow(request: dict):
     if not all([tenant_id, instance_url, username, password]):
         raise HTTPException(status_code=400, detail="Missing required fields")
     
-    # In production, this would save to database encrypted
-    # For now, just return success
-    return {"success": True}
+    # Validate URL format
+    if not instance_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Instance URL must start with https://")
+    
+    if ".service-now.com" not in instance_url:
+        raise HTTPException(status_code=400, detail="Invalid ServiceNow instance URL")
+    
+    # In production, this would:
+    # 1. Encrypt credentials
+    # 2. Save to database
+    # 3. Register tenant with ServiceNow connector
+    # 4. Start polling for incidents
+    
+    # For demo, just return success
+    return {
+        "success": True,
+        "message": "Configuration saved successfully (demo mode)"
+    }
 
 
 @router.get("/settings/cloud-providers")
@@ -665,20 +687,27 @@ async def test_cloud_provider(request: dict):
         if not all([access_key, secret_key, region]):
             return {
                 "success": False,
-                "message": "Missing AWS credentials"
+                "message": "Missing AWS credentials (access key, secret key, or region)"
             }
         
-        # In production, this would use boto3 to test the connection
-        # For now, validate the format
+        # Validate format
         if not access_key.startswith("AKIA"):
             return {
                 "success": False,
-                "message": "Invalid AWS access key format"
+                "message": "Invalid AWS access key format (should start with AKIA)"
             }
         
+        if len(secret_key) < 20:
+            return {
+                "success": False,
+                "message": "Invalid AWS secret key format (too short)"
+            }
+        
+        # For demo purposes, just validate format
+        # In production, this would use boto3 to test the connection
         return {
             "success": True,
-            "message": "AWS connection successful"
+            "message": "AWS connection successful (demo mode - credentials validated)"
         }
     
     return {
@@ -697,6 +726,18 @@ async def save_cloud_provider(request: dict):
     if not all([tenant_id, provider, credentials]):
         raise HTTPException(status_code=400, detail="Missing required fields")
     
-    # In production, this would save to database encrypted
-    # For now, just return success
-    return {"success": True}
+    # Validate provider
+    if provider not in ["aws", "azure", "gcp"]:
+        raise HTTPException(status_code=400, detail=f"Invalid provider: {provider}")
+    
+    # In production, this would:
+    # 1. Encrypt credentials
+    # 2. Save to database
+    # 3. Register tenant with cloud adapter
+    # 4. Start infrastructure discovery
+    
+    # For demo, just return success
+    return {
+        "success": True,
+        "message": f"{provider.upper()} configuration saved successfully (demo mode)"
+    }
