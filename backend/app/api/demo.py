@@ -102,7 +102,7 @@ async def login(request: LoginRequest):
         },
         tenant={
             "id": user["tenant_id"],
-            "name": "Demo Company",
+            "name": "CloudScore Astra AI",
         }
     )
 

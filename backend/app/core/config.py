@@ -99,7 +99,7 @@ class LLMSettings(BaseModel):
 class AppSettings(BaseModel):
     """Main application settings."""
 
-    app_name: str = Field(default="SRE AI Agent", description="Application name")
+    app_name: str = Field(default="CloudScore Astra AI", description="Application name")
     app_env: str = Field(default="development", description="Application environment")
     log_level: str = Field(default="INFO", description="Logging level")
     secret_key: str = Field(default="dev-secret-key-change-in-production", description="Secret key for JWT and encryption")
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     """Aggregated application settings."""
 
     # App settings
-    app_name: str = Field(default="SRE AI Agent", validation_alias="APP_NAME")
+    app_name: str = Field(default="CloudScore Astra AI", validation_alias="APP_NAME")
     app_env: str = Field(default="development", validation_alias="APP_ENV")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     secret_key: str = Field(default="dev-secret-key-change-in-production", validation_alias="SECRET_KEY")

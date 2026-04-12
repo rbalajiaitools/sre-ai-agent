@@ -45,12 +45,12 @@ export function Sidebar() {
       <div className="flex h-14 items-center border-b px-4">
         {!sidebarCollapsed && (
           <h1 className="text-lg font-semibold">
-            {import.meta.env.VITE_APP_NAME || 'SRE AI Agent'}
+            CloudScore Astra AI
           </h1>
         )}
         {sidebarCollapsed && (
           <div className="flex h-8 w-8 items-center justify-center rounded bg-primary text-primary-foreground font-bold">
-            S
+            CA
           </div>
         )}
       </div>

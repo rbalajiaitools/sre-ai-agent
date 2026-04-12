@@ -48,8 +48,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 # Create FastAPI application
 app = FastAPI(
-    title=settings.app.app_name,
-    description="Enterprise-grade multi-tenant SaaS platform for SRE AI Agent",
+    title="CloudScore Astra AI",
+    description="Enterprise-grade multi-tenant SaaS platform for CloudScore Astra AI",
     version="0.1.0",
     lifespan=lifespan,
     docs_url=f"{settings.app.api_v1_prefix}/docs",
