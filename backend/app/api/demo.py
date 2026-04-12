@@ -276,29 +276,78 @@ async def create_chat_thread(tenant_id: str = Query(...)):
 @router.get("/chat/threads/{thread_id}/messages")
 async def get_chat_messages(thread_id: str):
     """Get messages for thread."""
-    if thread_id not in demo_chat_threads:
-        raise HTTPException(status_code=404, detail="Thread not found")
+    # Get thread info if it exists
+    thread = demo_chat_threads.get(thread_id)
     
+    # If thread doesn't exist, return empty messages
+    if not thread:
+        return []
+    
+    # Get investigation info from thread
+    investigation_id = thread.get("investigation_id")
+    incident_number = thread.get("incident_number")
+    
+    # Return investigation-related messages
+    if investigation_id and incident_number:
+        incident = next((i for i in demo_incidents if i["number"] == incident_number), None)
+        incident_description = incident["short_description"] if incident else "the incident"
+        
+        return [
+            {
+                "id": f"msg-{thread_id}-001",
+                "thread_id": thread_id,
+                "role": "user",
+                "content": f"What is causing {incident_description}?",
+                "message_type": "text",
+                "metadata": {},
+                "created_at": (datetime.now() - timedelta(minutes=5)).isoformat(),
+            },
+            {
+                "id": f"msg-{thread_id}-002",
+                "thread_id": thread_id,
+                "role": "assistant",
+                "content": f"I am investigating {incident_description}. Let me analyze the logs, metrics, and recent changes...",
+                "message_type": "investigation_start",
+                "metadata": {
+                    "investigation_id": investigation_id,
+                    "incident_number": incident_number,
+                },
+                "created_at": (datetime.now() - timedelta(minutes=4)).isoformat(),
+            },
+            {
+                "id": f"msg-{thread_id}-003",
+                "thread_id": thread_id,
+                "role": "assistant",
+                "content": "Investigation complete",
+                "message_type": "rca_result",
+                "metadata": {
+                    "investigation_id": investigation_id,
+                    "incident_number": incident_number,
+                    "root_cause": "Database connection pool exhausted due to connection leak in payment processing code",
+                    "confidence": 0.92,
+                },
+                "created_at": (datetime.now() - timedelta(minutes=2)).isoformat(),
+            },
+        ]
+    
+    # Return generic messages for non-investigation threads
     return [
         {
-            "id": "msg-001",
+            "id": f"msg-{thread_id}-001",
             "thread_id": thread_id,
             "role": "user",
-            "content": "What is causing the payment service latency?",
+            "content": "Hello, I need help with an issue.",
             "message_type": "text",
             "metadata": {},
             "created_at": (datetime.now() - timedelta(minutes=5)).isoformat(),
         },
         {
-            "id": "msg-002",
+            "id": f"msg-{thread_id}-002",
             "thread_id": thread_id,
             "role": "assistant",
-            "content": "I am investigating the payment service latency issue...",
-            "message_type": "investigation_start",
-            "metadata": {
-                "investigation_id": "inv-001",
-                "incident_number": "INC0001234",
-            },
+            "content": "Hello! I'm here to help. What issue are you experiencing?",
+            "message_type": "text",
+            "metadata": {},
             "created_at": (datetime.now() - timedelta(minutes=4)).isoformat(),
         },
     ]
