@@ -2,11 +2,11 @@
  * Dashboard TanStack Query hooks
  */
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/stores/authStore';
+import { useTenant } from '@/stores/authStore';
 import * as api from './api';
 
 export function useDashboardStats() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['dashboard-stats', tenant?.id],
@@ -20,7 +20,7 @@ export function useDashboardStats() {
 }
 
 export function useIncidentTrends(days: number) {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['incident-trends', tenant?.id, days],
@@ -33,7 +33,7 @@ export function useIncidentTrends(days: number) {
 }
 
 export function useTopServices(limit: number = 10) {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['top-services', tenant?.id, limit],
@@ -46,7 +46,7 @@ export function useTopServices(limit: number = 10) {
 }
 
 export function useAgentStats() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['agent-stats', tenant?.id],

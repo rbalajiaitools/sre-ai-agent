@@ -2,12 +2,12 @@
  * Topology TanStack Query hooks
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/stores/authStore';
+import { useTenant } from '@/stores/authStore';
 import * as api from './api';
 import type { ResourceFilters } from './types';
 
 export function useTopologyGraph() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['topology-graph', tenant?.id],
@@ -20,7 +20,7 @@ export function useTopologyGraph() {
 }
 
 export function useServices() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['services', tenant?.id],
@@ -33,7 +33,7 @@ export function useServices() {
 }
 
 export function useServiceDetail(serviceName: string | null) {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['service-detail', tenant?.id, serviceName],
@@ -46,7 +46,7 @@ export function useServiceDetail(serviceName: string | null) {
 }
 
 export function useResources(filters?: ResourceFilters) {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['resources', tenant?.id, filters],
@@ -59,7 +59,7 @@ export function useResources(filters?: ResourceFilters) {
 }
 
 export function useCIMappings() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
 
   return useQuery({
     queryKey: ['ci-mappings', tenant?.id],
@@ -72,7 +72,7 @@ export function useCIMappings() {
 }
 
 export function useUpdateCIMapping() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -87,7 +87,7 @@ export function useUpdateCIMapping() {
 }
 
 export function useTriggerRediscovery() {
-  const { tenant } = useAuth();
+  const tenant = useTenant();
   const queryClient = useQueryClient();
 
   return useMutation({
