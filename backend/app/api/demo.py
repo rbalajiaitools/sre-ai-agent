@@ -122,15 +122,35 @@ async def get_incident(incident_number: str, tenant_id: str = Query(...)):
     return incident
 
 
+class RefreshIncidentsRequest(BaseModel):
+    tenant_id: str
+
+
 @router.post("/incidents/refresh")
-async def refresh_incidents(tenant_id: str = Query(...)):
+async def refresh_incidents(request: RefreshIncidentsRequest):
     """Refresh incidents from ServiceNow."""
     return {"message": "Incidents refreshed", "count": len(demo_incidents)}
 
 
 @router.post("/incidents/{incident_number}/investigate")
-async def start_investigation(incident_number: str, tenant_id: str = Query(...)):
+async def start_investigation_legacy(incident_number: str, tenant_id: str = Query(...)):
+    """Start investigation for incident (legacy endpoint)."""
+    return await start_investigation_impl(incident_number)
+
+
+class StartInvestigationRequest(BaseModel):
+    tenant_id: str
+    incident_number: str
+
+
+@router.post("/investigations/start")
+async def start_investigation(request: StartInvestigationRequest):
     """Start investigation for incident."""
+    return await start_investigation_impl(request.incident_number)
+
+
+async def start_investigation_impl(incident_number: str):
+    """Implementation of start investigation."""
     incident = next((i for i in demo_incidents if i["number"] == incident_number), None)
     if not incident:
         raise HTTPException(status_code=404, detail="Incident not found")
