@@ -15,13 +15,13 @@ import type {
 
 export async function getTopologyGraph(tenantId: string): Promise<TopologyGraph> {
   return api.get<TopologyGraph>(
-    `/tenants/${tenantId}/topology/graph`
+    `/topology/graph?tenant_id=${tenantId}`
   );
 }
 
 export async function getServices(tenantId: string): Promise<ServiceNode[]> {
   return api.get<ServiceNode[]>(
-    `/tenants/${tenantId}/topology/services`
+    `/topology/services?tenant_id=${tenantId}`
   );
 }
 
@@ -30,7 +30,7 @@ export async function getServiceDetail(
   serviceName: string
 ): Promise<ServiceDetail> {
   return api.get<ServiceDetail>(
-    `/tenants/${tenantId}/topology/services/${encodeURIComponent(serviceName)}`
+    `/topology/services/${encodeURIComponent(serviceName)}?tenant_id=${tenantId}`
   );
 }
 
@@ -38,15 +38,19 @@ export async function getResources(
   tenantId: string,
   filters?: ResourceFilters
 ): Promise<PaginatedResponse<Resource>> {
+  const params = new URLSearchParams({ tenant_id: tenantId });
+  if (filters?.provider) params.append('provider', filters.provider);
+  if (filters?.resource_type) params.append('resource_type', filters.resource_type);
+  if (filters?.search) params.append('search', filters.search);
+  
   return api.get<PaginatedResponse<Resource>>(
-    `/tenants/${tenantId}/topology/resources`,
-    { params: filters }
+    `/topology/resources?${params.toString()}`
   );
 }
 
 export async function getCIMappings(tenantId: string): Promise<CIMapping[]> {
   return api.get<CIMapping[]>(
-    `/tenants/${tenantId}/topology/ci-mappings`
+    `/topology/ci-mappings?tenant_id=${tenantId}`
   );
 }
 
@@ -56,13 +60,13 @@ export async function updateCIMapping(
   resourceIds: string[]
 ): Promise<CIMapping> {
   return api.put<CIMapping>(
-    `/tenants/${tenantId}/topology/ci-mappings/${ciSysId}`,
+    `/topology/ci-mappings/${ciSysId}?tenant_id=${tenantId}`,
     { resource_ids: resourceIds }
   );
 }
 
 export async function triggerRediscovery(tenantId: string): Promise<RediscoveryJob> {
   return api.post<RediscoveryJob>(
-    `/tenants/${tenantId}/topology/rediscover`
+    `/topology/rediscover?tenant_id=${tenantId}`
   );
 }

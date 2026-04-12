@@ -11,7 +11,7 @@ import type {
 
 export async function getDashboardStats(tenantId: string): Promise<DashboardStats> {
   return api.get<DashboardStats>(
-    `/tenants/${tenantId}/dashboard/stats`
+    `/dashboard/stats?tenant_id=${tenantId}`
   );
 }
 
@@ -20,8 +20,7 @@ export async function getIncidentTrends(
   days: number
 ): Promise<IncidentTrend[]> {
   return api.get<IncidentTrend[]>(
-    `/tenants/${tenantId}/dashboard/trends`,
-    { params: { days } }
+    `/dashboard/trends?tenant_id=${tenantId}&days=${days}`
   );
 }
 
@@ -30,13 +29,12 @@ export async function getTopServices(
   limit: number
 ): Promise<TopService[]> {
   return api.get<TopService[]>(
-    `/tenants/${tenantId}/dashboard/top-services`,
-    { params: { limit } }
+    `/dashboard/top-services?tenant_id=${tenantId}&limit=${limit}`
   );
 }
 
 export async function getAgentStats(tenantId: string): Promise<AgentAccuracy[]> {
   return api.get<AgentAccuracy[]>(
-    `/tenants/${tenantId}/dashboard/agent-stats`
+    `/dashboard/agent-stats?tenant_id=${tenantId}`
   );
 }

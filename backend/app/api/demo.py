@@ -497,3 +497,65 @@ async def get_dashboard_stats(tenant_id: str = Query(...)):
         "investigations_today": 3,
         "auto_resolved": 1,
     }
+
+
+@router.get("/dashboard/trends")
+async def get_incident_trends(tenant_id: str = Query(...), days: int = Query(7)):
+    """Get incident trends."""
+    trends = []
+    for i in range(days):
+        date = (datetime.now() - timedelta(days=days-i-1)).date()
+        trends.append({
+            "date": date.isoformat(),
+            "total": 15 + (i % 5),
+            "p1": 2 + (i % 3),
+            "p2": 5 + (i % 4),
+            "p3": 8 + (i % 3),
+            "resolved": 12 + (i % 4),
+        })
+    return trends
+
+
+@router.get("/dashboard/top-services")
+async def get_top_services(tenant_id: str = Query(...), limit: int = Query(5)):
+    """Get top services by incident count."""
+    services = [
+        {"service_name": "payment-service", "incident_count": 8, "avg_mttr_hours": 2.5},
+        {"service_name": "api-gateway", "incident_count": 6, "avg_mttr_hours": 1.8},
+        {"service_name": "auth-service", "incident_count": 4, "avg_mttr_hours": 3.2},
+        {"service_name": "notification-service", "incident_count": 3, "avg_mttr_hours": 1.5},
+        {"service_name": "user-service", "incident_count": 2, "avg_mttr_hours": 2.0},
+    ]
+    return services[:limit]
+
+
+@router.get("/dashboard/agent-stats")
+async def get_agent_stats(tenant_id: str = Query(...)):
+    """Get agent accuracy stats."""
+    return [
+        {"agent_name": "Logs Agent", "accuracy": 0.92, "total_runs": 45, "avg_duration_seconds": 38},
+        {"agent_name": "Metrics Agent", "accuracy": 0.88, "total_runs": 45, "avg_duration_seconds": 25},
+        {"agent_name": "Infrastructure Agent", "accuracy": 0.85, "total_runs": 42, "avg_duration_seconds": 30},
+        {"agent_name": "Security Agent", "accuracy": 0.90, "total_runs": 38, "avg_duration_seconds": 45},
+        {"agent_name": "Code Agent", "accuracy": 0.87, "total_runs": 35, "avg_duration_seconds": 52},
+    ]
+
+
+@router.get("/topology/graph")
+async def get_topology_graph(tenant_id: str = Query(...)):
+    """Get topology graph."""
+    return {
+        "nodes": [
+            {"id": "svc-001", "name": "payment-service", "type": "service", "status": "degraded"},
+            {"id": "svc-002", "name": "api-gateway", "type": "service", "status": "down"},
+            {"id": "svc-003", "name": "auth-service", "type": "service", "status": "healthy"},
+            {"id": "db-001", "name": "postgres-primary", "type": "database", "status": "healthy"},
+            {"id": "cache-001", "name": "redis-cache", "type": "cache", "status": "healthy"},
+        ],
+        "edges": [
+            {"source": "svc-002", "target": "svc-001", "type": "depends_on"},
+            {"source": "svc-002", "target": "svc-003", "type": "depends_on"},
+            {"source": "svc-001", "target": "db-001", "type": "depends_on"},
+            {"source": "svc-001", "target": "cache-001", "type": "depends_on"},
+        ],
+    }
