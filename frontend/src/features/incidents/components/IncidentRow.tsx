@@ -13,14 +13,12 @@ interface IncidentRowProps {
   incident: ServiceNowIncident;
   isSelected: boolean;
   onClick: () => void;
-  onInvestigate: (e: React.MouseEvent) => void;
 }
 
 export function IncidentRow({
   incident,
   isSelected,
   onClick,
-  onInvestigate,
 }: IncidentRowProps) {
   const getPriorityColor = (priority: IncidentPriority) => {
     const key = `p${priority}` as keyof typeof priorityColors;
@@ -41,16 +39,7 @@ export function IncidentRow({
 
   const renderInvestigationStatus = () => {
     if (!incident.investigation_status) {
-      return (
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={onInvestigate}
-          className="h-7 text-xs"
-        >
-          Investigate
-        </Button>
-      );
+      return null;
     }
 
     const status = incident.investigation_status;

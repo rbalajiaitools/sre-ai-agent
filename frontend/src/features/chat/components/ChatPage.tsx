@@ -2,16 +2,30 @@
  * Chat Page - main chat interface with two-column layout
  */
 import { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { MessageSquarePlus } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
+import { useCreateThread } from '../hooks';
 import { ThreadList } from './ThreadList';
 import { ChatWindow } from './ChatWindow';
 
 export function ChatPage() {
   const { threadId } = useParams<{ threadId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { activeChatId, setActiveChatId } = useAppStore();
+  const createThreadMutation = useCreateThread();
+
+  // Handle service context from URL (Topology → Chat flow)
+  useEffect(() => {
+    const serviceName = searchParams.get('service');
+    if (serviceName && !threadId) {
+      // Create new thread with service context
+      createThreadMutation.mutate({
+        service_name: serviceName,
+      });
+    }
+  }, [searchParams, threadId]);
 
   // Sync URL param with store
   useEffect(() => {

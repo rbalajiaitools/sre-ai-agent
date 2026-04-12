@@ -2,6 +2,7 @@
  * Incident Detail Panel - right panel with incident details
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, ExternalLink } from 'lucide-react';
 import { ServiceNowIncident } from '../types';
 import { IncidentPriority } from '@/types';
@@ -9,27 +10,40 @@ import { Button } from '@/components/ui/button';
 import { InvestigationStatusCard } from './InvestigationStatusCard';
 import { IncidentMetadata } from './IncidentMetadata';
 import { IncidentWorkNotes } from './IncidentWorkNotes';
+import { useStartInvestigation } from '../hooks';
+import { useCreateThread } from '@/features/chat/hooks';
 import { cn } from '@/lib/utils';
 import { priorityColors } from '@/lib/colors';
 
 interface IncidentDetailPanelProps {
   incident: ServiceNowIncident;
   onClose: () => void;
-  onInvestigate: () => void;
-  onSendToChat: () => void;
-  isInvestigating: boolean;
-  investigateError?: boolean;
 }
 
 export function IncidentDetailPanel({
   incident,
   onClose,
-  onInvestigate,
-  onSendToChat,
-  isInvestigating,
-  investigateError = false,
 }: IncidentDetailPanelProps) {
+  const navigate = useNavigate();
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  
+  const startInvestigationMutation = useStartInvestigation();
+  const createThreadMutation = useCreateThread();
+
+  const handleInvestigate = () => {
+    startInvestigationMutation.mutate(incident.number);
+  };
+
+  const handleSendToChat = () => {
+    createThreadMutation.mutate({
+      incident: {
+        sys_id: incident.sys_id,
+        number: incident.number,
+        short_description: incident.short_description,
+        priority: incident.priority,
+      },
+    });
+  };
 
   const getPriorityColor = (priority: IncidentPriority) => {
     const key = `p${priority}` as keyof typeof priorityColors;
@@ -132,20 +146,25 @@ export function IncidentDetailPanel({
 
       {/* Action buttons */}
       <div className="p-4 border-t space-y-2">
-        {investigateError && (
+        {startInvestigationMutation.isError && (
           <p className="text-sm text-destructive mb-2">
             Failed to start investigation. Please try again.
           </p>
         )}
         <Button
-          onClick={onInvestigate}
-          disabled={isInvestigating || !!incident.investigation_status}
+          onClick={handleInvestigate}
+          disabled={startInvestigationMutation.isPending || !!incident.investigation_status}
           className="w-full"
         >
-          {isInvestigating ? 'Starting Investigation...' : 'Investigate'}
+          {startInvestigationMutation.isPending ? 'Starting Investigation...' : 'Investigate'}
         </Button>
         <div className="flex gap-2">
-          <Button onClick={onSendToChat} variant="outline" className="flex-1">
+          <Button 
+            onClick={handleSendToChat} 
+            variant="outline" 
+            className="flex-1"
+            disabled={createThreadMutation.isPending}
+          >
             Send to Chat
           </Button>
           <Button

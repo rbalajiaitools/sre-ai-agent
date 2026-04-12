@@ -183,6 +183,13 @@ export function useApproveResolution(investigationId: string) {
       queryClient.invalidateQueries({
         queryKey: ['chat', 'messages'],
       });
+      // Invalidate incidents to update status
+      queryClient.invalidateQueries({
+        queryKey: ['incidents'],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['investigations'],
+      });
     },
   });
 }

@@ -5,13 +5,12 @@ import { useState, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useIncidents, useRefreshIncidents, useStartInvestigation } from '../hooks';
+import { useIncidents, useRefreshIncidents } from '../hooks';
 import { IncidentFilter, ServiceNowIncident } from '../types';
 import { IncidentFilters } from './IncidentFilters';
 import { IncidentList } from './IncidentList';
 import { IncidentDetailPanel } from './IncidentDetailPanel';
 import { IncidentPriority, IncidentState } from '@/types';
-import { useAppStore } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
 
 export function IncidentsPage() {
@@ -27,8 +26,6 @@ export function IncidentsPage() {
 
   const { data: incidents, isLoading, isError, dataUpdatedAt } = useIncidents(filter);
   const refreshMutation = useRefreshIncidents();
-  const investigateMutation = useStartInvestigation();
-  const { setActiveChatId } = useAppStore();
 
   // Calculate list height based on container
   useEffect(() => {
@@ -46,17 +43,6 @@ export function IncidentsPage() {
 
   const handleRefresh = () => {
     refreshMutation.mutate();
-  };
-
-  const handleInvestigate = (incidentNumber: string) => {
-    investigateMutation.mutate(incidentNumber);
-  };
-
-  const handleSendToChat = () => {
-    if (!selectedIncident) return;
-    // TODO: Implement send to active chat without starting investigation
-    // For now, just navigate to chat
-    setActiveChatId(null);
   };
 
   // Get unique assignment groups for filter
@@ -139,7 +125,6 @@ export function IncidentsPage() {
             isError={isError}
             selectedIncidentId={selectedIncident?.sys_id || null}
             onIncidentSelect={setSelectedIncident}
-            onInvestigate={handleInvestigate}
             height={listHeight}
           />
         </div>
@@ -151,10 +136,6 @@ export function IncidentsPage() {
           <IncidentDetailPanel
             incident={selectedIncident}
             onClose={() => setSelectedIncident(null)}
-            onInvestigate={() => handleInvestigate(selectedIncident.number)}
-            onSendToChat={handleSendToChat}
-            isInvestigating={investigateMutation.isPending}
-            investigateError={investigateMutation.isError}
           />
         </div>
       )}

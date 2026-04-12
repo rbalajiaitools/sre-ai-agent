@@ -15,7 +15,6 @@ interface IncidentListProps {
   isError: boolean;
   selectedIncidentId: string | null;
   onIncidentSelect: (incident: ServiceNowIncident) => void;
-  onInvestigate: (incidentNumber: string) => void;
   height: number;
 }
 
@@ -25,7 +24,6 @@ export function IncidentList({
   isError,
   selectedIncidentId,
   onIncidentSelect,
-  onInvestigate,
   height,
 }: IncidentListProps) {
   // Sort incidents: P1 first, then by updated_at desc
@@ -80,10 +78,6 @@ export function IncidentList({
           incident={incident}
           isSelected={selectedIncidentId === incident.sys_id}
           onClick={() => onIncidentSelect(incident)}
-          onInvestigate={(e) => {
-            e.stopPropagation();
-            onInvestigate(incident.number);
-          }}
         />
       </div>
     );
