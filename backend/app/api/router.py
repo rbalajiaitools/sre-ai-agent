@@ -2,11 +2,11 @@
 
 from fastapi import APIRouter
 
-from app.api import health
-# from app.orchestration import api as orchestration_api
+from app.api import health, demo
 
 api_router = APIRouter()
 
 # Include sub-routers
 api_router.include_router(health.router)
+api_router.include_router(demo.router)
 # api_router.include_router(orchestration_api.router, prefix="", tags=["investigations"])
