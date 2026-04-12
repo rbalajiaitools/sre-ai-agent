@@ -325,6 +325,44 @@ async def get_chat_messages(thread_id: str):
                     "incident_number": incident_number,
                     "root_cause": "Database connection pool exhausted due to connection leak in payment processing code",
                     "confidence": 0.92,
+                    "timeline": [
+                        {
+                            "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
+                            "event": "Connection pool utilization started increasing",
+                            "source": "Metrics",
+                        },
+                        {
+                            "timestamp": (datetime.now() - timedelta(minutes=45)).isoformat(),
+                            "event": "First connection timeout errors logged",
+                            "source": "Logs",
+                        },
+                        {
+                            "timestamp": (datetime.now() - timedelta(minutes=30)).isoformat(),
+                            "event": "Service latency exceeded SLA threshold",
+                            "source": "Monitoring",
+                        },
+                    ],
+                    "affected_resources": [
+                        {"name": "payment-service", "type": "service", "provider": "AWS", "status": "degraded"},
+                        {"name": "postgres-primary", "type": "database", "provider": "AWS", "status": "healthy"},
+                    ],
+                    "contributing_factors": [
+                        "Missing connection.close() in error handling path",
+                        "Connection pool size not configured for peak load",
+                        "No connection leak detection enabled",
+                    ],
+                    "evidence": [
+                        {
+                            "description": "Found 15 connection timeout errors in application logs",
+                            "source_agent": "Logs Agent",
+                            "provider": "CloudWatch",
+                        },
+                        {
+                            "description": "Database connection count reached maximum limit of 100",
+                            "source_agent": "Metrics Agent",
+                            "provider": "CloudWatch",
+                        },
+                    ],
                 },
                 "created_at": (datetime.now() - timedelta(minutes=2)).isoformat(),
             },
