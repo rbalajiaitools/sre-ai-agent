@@ -30,13 +30,16 @@ export function StatCard({ title, value, subtitle, trend, icon }: StatCardProps)
     <div className="rounded-lg border bg-card p-6">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        {icon && <div className="text-muted-foreground">{icon}</div>}
+        {icon && <div className="text-muted-foreground" aria-hidden="true">{icon}</div>}
       </div>
       <div className="mt-2 flex items-baseline gap-2">
         <p className="text-3xl font-bold">{value}</p>
         {trend !== undefined && (
-          <div className={`flex items-center gap-1 text-sm ${getTrendColor()}`}>
-            {getTrendIcon()}
+          <div
+            className={`flex items-center gap-1 text-sm ${getTrendColor()}`}
+            aria-label={`${trend > 0 ? 'Increased' : trend < 0 ? 'Decreased' : 'No change'} by ${Math.abs(trend)} percent`}
+          >
+            <span aria-hidden="true">{getTrendIcon()}</span>
             <span>{Math.abs(trend)}%</span>
           </div>
         )}

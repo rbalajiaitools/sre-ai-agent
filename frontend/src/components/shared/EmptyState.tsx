@@ -15,7 +15,7 @@ interface EmptyStateProps {
 
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <div className="flex h-full min-h-[400px] items-center justify-center p-8">
+    <div className="flex h-full min-h-[400px] items-center justify-center p-8" role="status">
       <div className="text-center">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
           <FileQuestion className="h-8 w-8 text-muted-foreground" aria-hidden="true" />

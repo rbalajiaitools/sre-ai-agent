@@ -17,8 +17,10 @@ export function IncidentTrendChart() {
 
   if (trendsQuery.isError) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="text-sm text-red-500">Failed to load trends</p>
+      <div className="flex h-full items-center justify-center p-4" role="alert">
+        <p className="text-sm text-red-500">
+          Failed to load trends: {trendsQuery.error?.message || 'Unknown error'}
+        </p>
       </div>
     );
   }
@@ -29,13 +31,15 @@ export function IncidentTrendChart() {
     <div className="h-full space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">Incident Trends</h3>
-        <div className="flex gap-1">
+        <div className="flex gap-1" role="group" aria-label="Select time range">
           {[7, 30, 90].map((d) => (
             <Button
               key={d}
               variant={days === d ? 'default' : 'outline'}
               size="sm"
               onClick={() => setDays(d)}
+              aria-pressed={days === d}
+              aria-label={`Show ${d} days`}
             >
               {d}d
             </Button>

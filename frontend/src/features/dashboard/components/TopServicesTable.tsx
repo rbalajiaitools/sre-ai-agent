@@ -15,8 +15,10 @@ export function TopServicesTable() {
 
   if (servicesQuery.isError) {
     return (
-      <div className="p-4 text-center">
-        <p className="text-sm text-red-500">Failed to load services</p>
+      <div className="p-4 text-center" role="alert">
+        <p className="text-sm text-red-500">
+          Failed to load services: {servicesQuery.error?.message || 'Unknown error'}
+        </p>
       </div>
     );
   }

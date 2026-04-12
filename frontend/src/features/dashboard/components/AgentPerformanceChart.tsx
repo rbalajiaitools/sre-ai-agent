@@ -14,8 +14,10 @@ export function AgentPerformanceChart() {
 
   if (agentStatsQuery.isError) {
     return (
-      <div className="flex h-full items-center justify-center p-4">
-        <p className="text-sm text-red-500">Failed to load agent stats</p>
+      <div className="flex h-full items-center justify-center p-4" role="alert">
+        <p className="text-sm text-red-500">
+          Failed to load agent stats: {agentStatsQuery.error?.message || 'Unknown error'}
+        </p>
       </div>
     );
   }
