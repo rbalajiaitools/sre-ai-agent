@@ -584,3 +584,119 @@ async def get_topology_graph(tenant_id: str = Query(...)):
             {"id": "edge-4", "source": "svc-001", "target": "cache-001", "relationship": "DEPENDS_ON"},
         ],
     }
+
+
+
+# Settings endpoints
+@router.get("/settings/servicenow")
+async def get_servicenow_config(tenant_id: str = Query(...)):
+    """Get ServiceNow configuration."""
+    # In production, this would fetch from database
+    # For now, return the configured values from .env
+    from app.core.config import get_settings
+    settings = get_settings()
+    
+    return {
+        "instance_url": settings.servicenow_instance_url or "",
+        "username": settings.servicenow_username or "",
+        # Never return password
+    }
+
+
+@router.post("/settings/servicenow/test")
+async def test_servicenow(request: dict):
+    """Test ServiceNow connection."""
+    instance_url = request.get("instance_url")
+    username = request.get("username")
+    password = request.get("password")
+    
+    if not all([instance_url, username, password]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    
+    # In production, this would actually test the connection
+    # For now, validate the URL format
+    if not instance_url.startswith("https://") or not ".service-now.com" in instance_url:
+        return {
+            "success": False,
+            "message": "Invalid ServiceNow instance URL format"
+        }
+    
+    return {
+        "success": True,
+        "message": "Connection successful"
+    }
+
+
+@router.post("/settings/servicenow")
+async def save_servicenow(request: dict):
+    """Save ServiceNow configuration."""
+    tenant_id = request.get("tenant_id")
+    instance_url = request.get("instance_url")
+    username = request.get("username")
+    password = request.get("password")
+    
+    if not all([tenant_id, instance_url, username, password]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    
+    # In production, this would save to database encrypted
+    # For now, just return success
+    return {"success": True}
+
+
+@router.get("/settings/cloud-providers")
+async def get_cloud_provider_config(tenant_id: str = Query(...)):
+    """Get cloud provider configurations."""
+    # In production, this would fetch from database
+    # For now, return empty array
+    return []
+
+
+@router.post("/settings/cloud-providers/test")
+async def test_cloud_provider(request: dict):
+    """Test cloud provider connection."""
+    provider = request.get("provider")
+    credentials = request.get("credentials", {})
+    
+    if provider == "aws":
+        access_key = credentials.get("access_key_id")
+        secret_key = credentials.get("secret_access_key")
+        region = credentials.get("region")
+        
+        if not all([access_key, secret_key, region]):
+            return {
+                "success": False,
+                "message": "Missing AWS credentials"
+            }
+        
+        # In production, this would use boto3 to test the connection
+        # For now, validate the format
+        if not access_key.startswith("AKIA"):
+            return {
+                "success": False,
+                "message": "Invalid AWS access key format"
+            }
+        
+        return {
+            "success": True,
+            "message": "AWS connection successful"
+        }
+    
+    return {
+        "success": False,
+        "message": f"Provider {provider} not supported yet"
+    }
+
+
+@router.post("/settings/cloud-providers")
+async def save_cloud_provider(request: dict):
+    """Save cloud provider configuration."""
+    tenant_id = request.get("tenant_id")
+    provider = request.get("provider")
+    credentials = request.get("credentials")
+    
+    if not all([tenant_id, provider, credentials]):
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    
+    # In production, this would save to database encrypted
+    # For now, just return success
+    return {"success": True}
