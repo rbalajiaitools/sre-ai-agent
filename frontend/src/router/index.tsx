@@ -10,7 +10,7 @@ import { ChatPage } from '@/features/chat/components/ChatPage';
 import { IncidentsPage } from '@/features/incidents/components/IncidentsPage';
 import { InvestigationsPage } from '@/features/investigations/components/InvestigationsPage';
 import { InvestigationDetailPage } from '@/features/investigations/components/InvestigationDetailPage';
-import { TopologyPage } from '@/pages/TopologyPage';
+import { TopologyPage } from '@/features/topology/components/TopologyPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 
