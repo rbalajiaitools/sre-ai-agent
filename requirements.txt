@@ -1,0 +1,41 @@
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# Logging
+structlog==24.1.0
+python-json-logger==2.0.7
+
+# Databases & Caching
+asyncpg==0.29.0
+redis[hiredis]==5.0.1
+neo4j==5.16.0
+
+# Auth & Security
+python-multipart==0.0.6
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Cloud Providers
+boto3==1.34.0
+botocore==1.34.0
+
+# HTTP Client
+httpx==0.26.0
+
+# Scheduling
+apscheduler==3.10.4
+
+# AI/ML Framework
+crewai>=0.11.0
+langchain>=0.1.0
+langchain-openai>=0.0.2
+langchain-anthropic>=0.1.0
+langchain-community>=0.0.13
+langgraph>=0.0.20
+
+# Vector Store
+faiss-cpu>=1.7.4
+pinecone-client>=3.0.0
