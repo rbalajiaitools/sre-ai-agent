@@ -8,7 +8,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { OnboardingPage } from '@/pages/OnboardingPage';
 import { ChatPage } from '@/features/chat/components/ChatPage';
 import { IncidentsPage } from '@/features/incidents/components/IncidentsPage';
-import { InvestigationsPage } from '@/pages/InvestigationsPage';
+import { InvestigationsPage } from '@/features/investigations/components/InvestigationsPage';
+import { InvestigationDetailPage } from '@/features/investigations/components/InvestigationDetailPage';
 import { TopologyPage } from '@/pages/TopologyPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { SettingsPage } from '@/pages/SettingsPage';
@@ -93,7 +94,7 @@ export const router = createBrowserRouter([
     path: '/investigations/:id',
     element: (
       <ProtectedLayout>
-        <InvestigationsPage />
+        <InvestigationDetailPage />
       </ProtectedLayout>
     ),
   },
