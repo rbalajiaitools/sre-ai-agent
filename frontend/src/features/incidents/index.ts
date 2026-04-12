@@ -9,5 +9,7 @@ export { IncidentFilters } from './components/IncidentFilters';
 export { IncidentList } from './components/IncidentList';
 export { IncidentRow } from './components/IncidentRow';
 export { IncidentDetailPanel } from './components/IncidentDetailPanel';
+export { IncidentMetadata } from './components/IncidentMetadata';
+export { IncidentWorkNotes } from './components/IncidentWorkNotes';
 export { InvestigationStatusCard } from './components/InvestigationStatusCard';
 export { AgentProgressMini } from './components/AgentProgressMini';

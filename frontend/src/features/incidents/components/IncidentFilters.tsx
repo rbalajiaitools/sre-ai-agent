@@ -117,7 +117,7 @@ export function IncidentFilters({
             {tab.label}
             {tab.value === IncidentPriority.P1 && hasP1Incidents && (
               <span
-                className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500"
+                className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive"
                 aria-label="Has P1 incidents"
               />
             )}

@@ -99,6 +99,8 @@ export function IncidentsPage() {
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                   Syncing with ServiceNow...
                 </span>
+              ) : refreshMutation.isError ? (
+                <span className="text-destructive">Sync failed</span>
               ) : (
                 <span>Last synced: {lastSyncedText}</span>
               )}
@@ -152,6 +154,7 @@ export function IncidentsPage() {
             onInvestigate={() => handleInvestigate(selectedIncident.number)}
             onSendToChat={handleSendToChat}
             isInvestigating={investigateMutation.isPending}
+            investigateError={investigateMutation.isError}
           />
         </div>
       )}
