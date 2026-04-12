@@ -49,13 +49,14 @@ export function ResourceFilters({
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Provider</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by provider">
           {Object.values(ProviderType).map((provider) => (
             <Button
               key={provider}
               variant={filters.providers?.includes(provider) ? 'default' : 'outline'}
               size="sm"
               onClick={() => onProviderToggle(provider)}
+              aria-pressed={filters.providers?.includes(provider)}
             >
               {provider.toUpperCase()}
             </Button>
@@ -65,13 +66,14 @@ export function ResourceFilters({
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Resource Type</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by resource type">
           {RESOURCE_TYPES.map((type) => (
             <Button
               key={type}
               variant={filters.types?.includes(type) ? 'default' : 'outline'}
               size="sm"
               onClick={() => onTypeToggle(type)}
+              aria-pressed={filters.types?.includes(type)}
             >
               {type}
             </Button>
@@ -81,13 +83,14 @@ export function ResourceFilters({
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Status</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
           {(['healthy', 'degraded', 'down', 'unknown'] as ServiceStatus[]).map((status) => (
             <Button
               key={status}
               variant={filters.statuses?.includes(status) ? 'default' : 'outline'}
               size="sm"
               onClick={() => onStatusToggle(status)}
+              aria-pressed={filters.statuses?.includes(status)}
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
             </Button>

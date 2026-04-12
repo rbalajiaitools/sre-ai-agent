@@ -190,7 +190,7 @@ export function ServiceMapView({
   }
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full" role="application" aria-label="Service topology graph">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -207,15 +207,13 @@ export function ServiceMapView({
         <MiniMap
           nodeColor={(node) => {
             const status = (node.data as ServiceNode).status;
-            return status === 'healthy'
-              ? '#22c55e'
-              : status === 'degraded'
-              ? '#eab308'
-              : status === 'down'
-              ? '#ef4444'
-              : '#6b7280';
+            // Use CSS custom properties that match Tailwind colors
+            if (status === 'healthy') return 'hsl(142 76% 36%)'; // green-600
+            if (status === 'degraded') return 'hsl(48 96% 53%)'; // yellow-500
+            if (status === 'down') return 'hsl(0 84% 60%)'; // red-500
+            return 'hsl(220 9% 46%)'; // gray-600
           }}
-          maskColor="rgba(0, 0, 0, 0.1)"
+          maskColor="hsl(var(--background) / 0.8)"
         />
       </ReactFlow>
     </div>

@@ -124,6 +124,15 @@ export function ResourceInventory({ initialFilters }: ResourceInventoryProps) {
                         key={resource.resource_id}
                         onClick={() => setSelectedResource(resource.resource_id)}
                         className="cursor-pointer border-b transition-colors hover:bg-muted/50"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            setSelectedResource(resource.resource_id);
+                          }
+                        }}
+                        aria-label={`View details for ${resource.name}`}
                       >
                         <td className="p-3 text-sm font-medium">{resource.name}</td>
                         <td className="p-3 text-sm text-muted-foreground">{resource.type}</td>

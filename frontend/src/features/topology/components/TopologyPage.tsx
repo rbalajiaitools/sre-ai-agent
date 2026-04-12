@@ -69,6 +69,8 @@ export function TopologyPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => setShowFilters(!showFilters)}
+                aria-label={showFilters ? 'Hide filters' : 'Show filters'}
+                aria-expanded={showFilters}
               >
                 <Filter className="mr-2 h-4 w-4" />
                 Filters
@@ -79,6 +81,7 @@ export function TopologyPage() {
               size="sm"
               onClick={handleRediscover}
               disabled={rediscovery.isPending}
+              aria-label="Rediscover infrastructure"
             >
               <RefreshCw
                 className={`mr-2 h-4 w-4 ${rediscovery.isPending ? 'animate-spin' : ''}`}
@@ -93,13 +96,14 @@ export function TopologyPage() {
           <div className="mt-4 space-y-3 rounded-lg border bg-muted/50 p-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">Provider</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by provider">
                 {Object.values(ProviderType).map((provider) => (
                   <Button
                     key={provider}
                     variant={providerFilter.includes(provider) ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => toggleProviderFilter(provider)}
+                    aria-pressed={providerFilter.includes(provider)}
                   >
                     {provider.toUpperCase()}
                   </Button>
@@ -109,13 +113,14 @@ export function TopologyPage() {
 
             <div className="space-y-2">
               <p className="text-sm font-medium">Status</p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
                 {(['healthy', 'degraded', 'down', 'unknown'] as ServiceStatus[]).map((status) => (
                   <Button
                     key={status}
                     variant={statusFilter.includes(status) ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => toggleStatusFilter(status)}
+                    aria-pressed={statusFilter.includes(status)}
                   >
                     {status.charAt(0).toUpperCase() + status.slice(1)}
                   </Button>
@@ -179,10 +184,20 @@ export function TopologyPage() {
 
       {/* Rediscovery notification */}
       {rediscovery.isSuccess && (
-        <div className="fixed bottom-4 right-4 rounded-lg border bg-card p-4 shadow-lg">
+        <div className="fixed bottom-4 right-4 rounded-lg border bg-card p-4 shadow-lg" role="status">
           <p className="text-sm font-medium">Rediscovery started</p>
           <p className="text-xs text-muted-foreground">
             Infrastructure mapping is in progress
+          </p>
+        </div>
+      )}
+
+      {/* Rediscovery error */}
+      {rediscovery.isError && (
+        <div className="fixed bottom-4 right-4 rounded-lg border border-red-500/50 bg-red-500/10 p-4 shadow-lg" role="alert">
+          <p className="text-sm font-medium text-red-500">Rediscovery failed</p>
+          <p className="text-xs text-red-500">
+            {rediscovery.error?.message || 'Failed to trigger infrastructure rediscovery'}
           </p>
         </div>
       )}
