@@ -1,13 +1,11 @@
 /**
  * Incident List - virtualized list of incidents
  */
-import * as ReactWindow from 'react-window';
+import { FixedSizeList } from 'react-window';
 import { Loader2 } from 'lucide-react';
 import { ServiceNowIncident } from '../types';
 import { IncidentRow } from './IncidentRow';
 import { IncidentPriority } from '@/types';
-
-const FixedSizeList = ReactWindow.FixedSizeList;
 
 interface IncidentListProps {
   incidents: ServiceNowIncident[] | undefined;
