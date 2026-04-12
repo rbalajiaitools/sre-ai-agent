@@ -520,11 +520,36 @@ async def get_incident_trends(tenant_id: str = Query(...), days: int = Query(7))
 async def get_top_services(tenant_id: str = Query(...), limit: int = Query(5)):
     """Get top services by incident count."""
     services = [
-        {"service_name": "payment-service", "incident_count": 8, "avg_mttr_hours": 2.5},
-        {"service_name": "api-gateway", "incident_count": 6, "avg_mttr_hours": 1.8},
-        {"service_name": "auth-service", "incident_count": 4, "avg_mttr_hours": 3.2},
-        {"service_name": "notification-service", "incident_count": 3, "avg_mttr_hours": 1.5},
-        {"service_name": "user-service", "incident_count": 2, "avg_mttr_hours": 2.0},
+        {
+            "service_name": "payment-service",
+            "incident_count": 8,
+            "avg_resolution_hours": 2.5,
+            "last_incident_at": (datetime.now() - timedelta(hours=2)).isoformat(),
+        },
+        {
+            "service_name": "api-gateway",
+            "incident_count": 6,
+            "avg_resolution_hours": 1.8,
+            "last_incident_at": (datetime.now() - timedelta(hours=5)).isoformat(),
+        },
+        {
+            "service_name": "auth-service",
+            "incident_count": 4,
+            "avg_resolution_hours": 3.2,
+            "last_incident_at": (datetime.now() - timedelta(days=1)).isoformat(),
+        },
+        {
+            "service_name": "notification-service",
+            "incident_count": 3,
+            "avg_resolution_hours": 1.5,
+            "last_incident_at": (datetime.now() - timedelta(days=2)).isoformat(),
+        },
+        {
+            "service_name": "user-service",
+            "incident_count": 2,
+            "avg_resolution_hours": 2.0,
+            "last_incident_at": (datetime.now() - timedelta(days=3)).isoformat(),
+        },
     ]
     return services[:limit]
 
