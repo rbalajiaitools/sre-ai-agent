@@ -5,7 +5,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { useAuth } from '@/stores/authStore';
 import { AppLayout } from '@/components/shared/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
-import { OnboardingPage } from '@/pages/OnboardingPage';
+import { OnboardingPage } from '@/features/onboarding/components/OnboardingPage';
 import { ChatPage } from '@/features/chat/components/ChatPage';
 import { IncidentsPage } from '@/features/incidents/components/IncidentsPage';
 import { InvestigationsPage } from '@/features/investigations/components/InvestigationsPage';
