@@ -75,6 +75,10 @@ export function useStartInvestigation() {
   return useMutation({
     mutationFn: (incidentNumber: string) =>
       startInvestigation(tenant!.id, incidentNumber),
+    onMutate: () => {
+      // Show loading state immediately
+      // The UI component should handle this via isPending
+    },
     onSuccess: (data) => {
       // Invalidate incidents to update investigation status
       queryClient.invalidateQueries({
@@ -82,7 +86,7 @@ export function useStartInvestigation() {
       });
 
       // Navigate to investigations page with the investigation selected
-      navigate(`/investigations?selected=${data.investigation_id}`);
+      navigate(`/investigations/${data.investigation_id}`);
     },
   });
 }
