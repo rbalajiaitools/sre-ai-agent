@@ -1071,13 +1071,120 @@ Be concise and focus on actionable insights."""
                 "error": str(e)
             })
         
-        # Update investigation with agent results
+        # Generate RCA and Resolution using AI
+        rca = None
+        resolution = None
+        
+        try:
+            from openai import AzureOpenAI
+            from app.core.config import get_settings
+            
+            settings = get_settings()
+            
+            ai_client = AzureOpenAI(
+                api_key=settings.llm.azure_openai_api_key,
+                api_version=settings.llm.azure_openai_api_version,
+                azure_endpoint=settings.llm.azure_openai_endpoint
+            )
+            
+            # Compile all agent findings
+            all_findings = []
+            for agent in agent_results:
+                if agent.get('success') and agent.get('evidence'):
+                    all_findings.append(f"\n{agent['agent_type'].upper()} Agent Findings:")
+                    for evidence in agent['evidence']:
+                        all_findings.append(f"- {evidence}")
+            
+            findings_text = '\n'.join(all_findings)
+            
+            # Generate RCA
+            rca_prompt = f"""Based on the following investigation findings for service '{service_name}', provide a Root Cause Analysis:
+
+{findings_text}
+
+Provide a structured RCA with:
+1. Root Cause (1-2 sentences)
+2. Contributing Factors (bullet points)
+3. Impact Assessment
+4. Confidence Level (High/Medium/Low)
+
+Be concise and actionable."""
+            
+            rca_response = ai_client.chat.completions.create(
+                model=settings.llm.azure_openai_deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are an expert SRE providing root cause analysis. Be concise and actionable."},
+                    {"role": "user", "content": rca_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=800
+            )
+            
+            rca_text = rca_response.choices[0].message.content
+            
+            # Generate Resolution
+            resolution_prompt = f"""Based on this Root Cause Analysis:
+
+{rca_text}
+
+And these investigation findings:
+{findings_text}
+
+Provide a detailed resolution plan with:
+1. Immediate Actions (to stop the bleeding)
+2. Short-term Fix (to resolve the issue)
+3. Long-term Improvements (to prevent recurrence)
+4. Monitoring Recommendations
+
+Be specific and actionable."""
+            
+            resolution_response = ai_client.chat.completions.create(
+                model=settings.llm.azure_openai_deployment_name,
+                messages=[
+                    {"role": "system", "content": "You are an expert SRE providing resolution plans. Be specific and actionable."},
+                    {"role": "user", "content": resolution_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=1000
+            )
+            
+            resolution_text = resolution_response.choices[0].message.content
+            
+            # Structure RCA
+            rca = {
+                "root_cause": rca_text,
+                "confidence": "high",
+                "supporting_evidence": [e for agent in agent_results if agent.get('success') for e in agent.get('evidence', [])[:3]],
+                "affected_resources": [service_name],
+                "contributing_factors": [],
+                "incident_timeline": []
+            }
+            
+            # Structure Resolution
+            resolution = {
+                "recommended_fix": resolution_text,
+                "fix_steps": [],
+                "commands": [],
+                "estimated_impact": "Low - Can be applied during business hours",
+                "requires_human_approval": True,
+                "snow_work_note": f"RCA: {rca_text}\n\nResolution: {resolution_text}"
+            }
+            
+            logger.info("rca_and_resolution_generated", investigation_id=investigation.id)
+            
+        except Exception as ai_error:
+            logger.error("rca_generation_error", error=str(ai_error))
+            # Continue without RCA/resolution
+        
+        # Update investigation with agent results, RCA, and resolution
         await crud.update_investigation(
             db=db,
             investigation_id=investigation.id,
             status="rca_complete",
             service_name=service_name,
             agent_results=agent_results,
+            rca=rca,
+            resolution=resolution,
             completed_at=datetime.utcnow()
         )
         

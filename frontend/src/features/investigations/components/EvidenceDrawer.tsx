@@ -127,9 +127,11 @@ export function EvidenceDrawer({ agents }: EvidenceDrawerProps) {
                       {evidence.map((item, index) => (
                         <div
                           key={index}
-                          className="p-2 rounded bg-muted/50 text-xs"
+                          className="p-3 rounded bg-muted/50 text-xs border"
                         >
-                          <p className="whitespace-pre-wrap break-words">{item}</p>
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                            <p className="whitespace-pre-wrap break-words leading-relaxed m-0">{item}</p>
+                          </div>
                         </div>
                       ))}
                     </div>

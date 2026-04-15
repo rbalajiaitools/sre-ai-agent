@@ -97,9 +97,9 @@ export function InvestigationDetailPage() {
       );
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Top bar */}
-      <div className="border-b bg-background p-4">
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Top bar - Fixed */}
+      <div className="flex-shrink-0 border-b bg-background p-4">
         <div className="flex items-center gap-4 mb-3">
           <Button
             variant="ghost"
@@ -135,11 +135,11 @@ export function InvestigationDetailPage() {
         </div>
       </div>
 
-      {/* Three-column layout - Fixed height with proper scrolling */}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full grid grid-cols-12 gap-4 p-4">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid grid-cols-12 gap-4 p-4">
           {/* Left: Agent Timeline (30%) */}
-          <div className="col-span-3 h-full overflow-y-auto pr-2">
+          <div className="col-span-3">
             <AgentTimeline
               agents={investigation.agent_results || []}
               elapsedSeconds={elapsedSeconds}
@@ -147,7 +147,7 @@ export function InvestigationDetailPage() {
           </div>
 
           {/* Center: RCA + Resolution (45%) */}
-          <div className="col-span-6 h-full overflow-y-auto px-2 space-y-6">
+          <div className="col-span-6 space-y-6">
             {investigation.rca ? (
               <RCACard rca={investigation.rca} />
             ) : (
@@ -171,7 +171,7 @@ export function InvestigationDetailPage() {
           </div>
 
           {/* Right: Evidence Drawer (25%) */}
-          <div className="col-span-3 h-full border-l pl-4">
+          <div className="col-span-3">
             <EvidenceDrawer agents={investigation.agent_results || []} />
           </div>
         </div>
