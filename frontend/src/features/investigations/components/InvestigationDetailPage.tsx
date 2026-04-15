@@ -141,7 +141,7 @@ export function InvestigationDetailPage() {
           {/* Left: Agent Timeline (30%) */}
           <div className="col-span-3 overflow-y-auto">
             <AgentTimeline
-              agents={investigation.agent_results}
+              agents={investigation.agent_results || []}
               elapsedSeconds={elapsedSeconds}
             />
           </div>
@@ -172,7 +172,7 @@ export function InvestigationDetailPage() {
 
           {/* Right: Evidence Drawer (25%) */}
           <div className="col-span-3 border-l">
-            <EvidenceDrawer agents={investigation.agent_results} />
+            <EvidenceDrawer agents={investigation.agent_results || []} />
           </div>
         </div>
       </div>

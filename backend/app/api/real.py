@@ -697,20 +697,24 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                     infra_findings.append(f"EC2 Instance {instance.get('InstanceId')}: {instance_type}, State: {state}")
             
             agent_results.append({
-                "agent": "infrastructure",
-                "status": "success",
-                "title": "Infrastructure Agent",
-                "findings": infra_findings if infra_findings else ["No infrastructure issues detected"],
-                "duration": 2.5
+                "agent_type": "infrastructure",
+                "success": True,
+                "analysis": {"findings": infra_findings},
+                "evidence": infra_findings if infra_findings else ["No infrastructure issues detected"],
+                "duration_seconds": 2.5,
+                "providers_queried": ["aws"],
+                "error": None
             })
         except Exception as e:
             logger.error("infrastructure_agent_error", error=str(e))
             agent_results.append({
-                "agent": "infrastructure",
-                "status": "error",
-                "title": "Infrastructure Agent",
-                "findings": [f"Error: {str(e)}"],
-                "duration": 0.5
+                "agent_type": "infrastructure",
+                "success": False,
+                "analysis": {},
+                "evidence": [],
+                "duration_seconds": 0.5,
+                "providers_queried": ["aws"],
+                "error": str(e)
             })
         
         # AGENT 2: Logs Agent - Query CloudWatch Logs
@@ -777,20 +781,24 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                 logs_findings.append(f"No log groups found for {service_name}")
             
             agent_results.append({
-                "agent": "logs",
-                "status": "success",
-                "title": "Logs Agent",
-                "findings": logs_findings if logs_findings else ["No log data available"],
-                "duration": 3.2
+                "agent_type": "logs",
+                "success": True,
+                "analysis": {"findings": logs_findings},
+                "evidence": logs_findings if logs_findings else ["No log data available"],
+                "duration_seconds": 3.2,
+                "providers_queried": ["aws"],
+                "error": None
             })
         except Exception as e:
             logger.error("logs_agent_error", error=str(e))
             agent_results.append({
-                "agent": "logs",
-                "status": "error",
-                "title": "Logs Agent",
-                "findings": [f"Error: {str(e)}"],
-                "duration": 0.5
+                "agent_type": "logs",
+                "success": False,
+                "analysis": {},
+                "evidence": [],
+                "duration_seconds": 0.5,
+                "providers_queried": ["aws"],
+                "error": str(e)
             })
         
         # AGENT 3: Metrics Agent - Query CloudWatch Metrics
@@ -869,20 +877,24 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                 metrics_findings.append("No metrics data available")
             
             agent_results.append({
-                "agent": "metrics",
-                "status": "success",
-                "title": "Metrics Agent",
-                "findings": metrics_findings,
-                "duration": 2.8
+                "agent_type": "metrics",
+                "success": True,
+                "analysis": {"findings": metrics_findings},
+                "evidence": metrics_findings,
+                "duration_seconds": 2.8,
+                "providers_queried": ["aws"],
+                "error": None
             })
         except Exception as e:
             logger.error("metrics_agent_error", error=str(e))
             agent_results.append({
-                "agent": "metrics",
-                "status": "error",
-                "title": "Metrics Agent",
-                "findings": [f"Error: {str(e)}"],
-                "duration": 0.5
+                "agent_type": "metrics",
+                "success": False,
+                "analysis": {},
+                "evidence": [],
+                "duration_seconds": 0.5,
+                "providers_queried": ["aws"],
+                "error": str(e)
             })
         
         # AGENT 4: Security Agent - Check IAM and security
@@ -920,20 +932,24 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                 security_findings.append("No security issues detected")
             
             agent_results.append({
-                "agent": "security",
-                "status": "success",
-                "title": "Security Agent",
-                "findings": security_findings,
-                "duration": 1.9
+                "agent_type": "security",
+                "success": True,
+                "analysis": {"findings": security_findings},
+                "evidence": security_findings,
+                "duration_seconds": 1.9,
+                "providers_queried": ["aws"],
+                "error": None
             })
         except Exception as e:
             logger.error("security_agent_error", error=str(e))
             agent_results.append({
-                "agent": "security",
-                "status": "error",
-                "title": "Security Agent",
-                "findings": [f"Error: {str(e)}"],
-                "duration": 0.5
+                "agent_type": "security",
+                "success": False,
+                "analysis": {},
+                "evidence": [],
+                "duration_seconds": 0.5,
+                "providers_queried": ["aws"],
+                "error": str(e)
             })
         
         # AGENT 5: Code Agent - Check recent deployments
@@ -964,20 +980,24 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                 code_findings.append("No recent code changes detected")
             
             agent_results.append({
-                "agent": "code",
-                "status": "success",
-                "title": "Code Agent",
-                "findings": code_findings,
-                "duration": 2.1
+                "agent_type": "code",
+                "success": True,
+                "analysis": {"findings": code_findings},
+                "evidence": code_findings,
+                "duration_seconds": 2.1,
+                "providers_queried": ["aws"],
+                "error": None
             })
         except Exception as e:
             logger.error("code_agent_error", error=str(e))
             agent_results.append({
-                "agent": "code",
-                "status": "error",
-                "title": "Code Agent",
-                "findings": [f"Error: {str(e)}"],
-                "duration": 0.5
+                "agent_type": "code",
+                "success": False,
+                "analysis": {},
+                "evidence": [],
+                "duration_seconds": 0.5,
+                "providers_queried": ["aws"],
+                "error": str(e)
             })
         
         # Update investigation with agent results
