@@ -28,7 +28,7 @@ export function useInvestigations(filters?: InvestigationFilters) {
 
 /**
  * Hook to fetch a single investigation by ID
- * Polls every 3 seconds if status is active
+ * Polls every 1 second if status is active for live updates
  */
 export function useInvestigation(id: string | null) {
   return useQuery({
@@ -36,12 +36,12 @@ export function useInvestigation(id: string | null) {
     queryFn: () => getInvestigation(id!),
     enabled: !!id,
     refetchInterval: (data) => {
-      // Poll every 3 seconds if investigation is active
+      // Poll every 1 second if investigation is active (for live agent updates)
       if (
         data?.status === InvestigationStatus.STARTED ||
         data?.status === InvestigationStatus.INVESTIGATING
       ) {
-        return 3000;
+        return 1000; // 1 second for live updates
       }
       return false;
     },

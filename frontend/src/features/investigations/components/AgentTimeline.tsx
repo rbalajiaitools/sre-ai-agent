@@ -49,6 +49,7 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
         />
       );
     }
+    // Running state with animation
     return (
       <Loader2
         className={cn('h-5 w-5 animate-spin', statusColors.info.icon)}
@@ -56,6 +57,18 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
       />
     );
   };
+
+  // Show placeholder agents if investigation is still running
+  const allAgentTypes = ['infrastructure', 'logs', 'metrics', 'security', 'code'];
+  const displayAgents = agents.length > 0 ? agents : allAgentTypes.map(type => ({
+    agent_type: type,
+    success: false,
+    error: null,
+    analysis: {},
+    evidence: [],
+    duration_seconds: 0,
+    providers_queried: []
+  }));
 
   return (
     <div className="space-y-4">
@@ -69,21 +82,28 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
 
       {/* Agent timeline */}
       <div className="space-y-3">
-        {agents.map((agent, index) => {
+        {displayAgents.map((agent, index) => {
           const isExpanded = expandedAgents.has(agent.agent_type);
+          const isRunning = !agent.success && !agent.error;
+          const hasCompleted = agent.success || agent.error;
 
           return (
             <div key={agent.agent_type} className="relative">
               {/* Timeline line */}
-              {index < agents.length - 1 && (
+              {index < displayAgents.length - 1 && (
                 <div className="absolute left-[18px] top-10 bottom-0 w-px bg-border" />
               )}
 
               {/* Agent node */}
               <button
-                onClick={() => toggleAgent(agent.agent_type)}
-                className="w-full text-left p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                onClick={() => hasCompleted && toggleAgent(agent.agent_type)}
+                className={cn(
+                  "w-full text-left p-3 rounded-lg border transition-colors",
+                  hasCompleted ? "hover:bg-muted/50" : "opacity-75",
+                  isRunning && "animate-pulse"
+                )}
                 aria-expanded={isExpanded}
+                disabled={!hasCompleted}
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 mt-0.5">
@@ -91,27 +111,43 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1">
-                      <p className="font-medium text-sm">{agent.agent_type}</p>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDuration(agent.duration_seconds)}
-                      </span>
+                      <p className="font-medium text-sm capitalize">{agent.agent_type}</p>
+                      {hasCompleted && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatDuration(agent.duration_seconds)}
+                        </span>
+                      )}
+                      {isRunning && (
+                        <span className="text-xs text-muted-foreground animate-pulse">
+                          Running...
+                        </span>
+                      )}
                     </div>
                     {agent.error && (
                       <p className={cn('text-xs', statusColors.error.textMuted)}>
                         {agent.error}
                       </p>
                     )}
+                    {isRunning && (
+                      <p className="text-xs text-muted-foreground">
+                        Collecting data from AWS...
+                      </p>
+                    )}
                   </div>
-                  {isExpanded ? (
-                    <ChevronDown className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                  {hasCompleted && (
+                    <>
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                      )}
+                    </>
                   )}
                 </div>
               </button>
 
               {/* Expanded details */}
-              {isExpanded && (
+              {isExpanded && hasCompleted && (
                 <div className="ml-11 mt-2 p-3 rounded-lg bg-muted space-y-3">
                   {/* Providers queried */}
                   {agent.providers_queried.length > 0 && (
