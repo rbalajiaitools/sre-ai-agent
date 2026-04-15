@@ -17,14 +17,11 @@ interface ResourceFiltersProps {
 }
 
 const RESOURCE_TYPES = [
-  'Compute',
-  'Container',
-  'Database',
-  'Serverless',
-  'Queue',
-  'Load Balancer',
-  'Storage',
-  'Network',
+  'service',
+  'database',
+  'cache',
+  'queue',
+  'storage',
 ];
 
 export function ResourceFilters({
@@ -50,17 +47,15 @@ export function ResourceFilters({
       <div className="space-y-2">
         <p className="text-sm font-medium">Provider</p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by provider">
-          {Object.values(ProviderType).map((provider) => (
-            <Button
-              key={provider}
-              variant={filters.providers?.includes(provider) ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => onProviderToggle(provider)}
-              aria-pressed={filters.providers?.includes(provider)}
-            >
-              {provider.toUpperCase()}
-            </Button>
-          ))}
+          {/* Only show AWS for now since that's what we support */}
+          <Button
+            variant={filters.providers?.includes(ProviderType.AWS) ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => onProviderToggle(ProviderType.AWS)}
+            aria-pressed={filters.providers?.includes(ProviderType.AWS)}
+          >
+            AWS
+          </Button>
         </div>
       </div>
 
@@ -75,7 +70,7 @@ export function ResourceFilters({
               onClick={() => onTypeToggle(type)}
               aria-pressed={filters.types?.includes(type)}
             >
-              {type}
+              {type.charAt(0).toUpperCase() + type.slice(1)}
             </Button>
           ))}
         </div>

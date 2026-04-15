@@ -15,7 +15,8 @@ import type {
 
 export async function getTopologyGraph(tenantId: string): Promise<TopologyGraph> {
   return api.get<TopologyGraph>(
-    `/topology/graph?tenant_id=${tenantId}`
+    `/topology/graph?tenant_id=${tenantId}`,
+    { timeout: 60000 } // 60 second timeout for AWS discovery
   );
 }
 

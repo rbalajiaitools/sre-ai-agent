@@ -7,7 +7,7 @@ interface StatusBadgeProps {
 }
 
 const incidentStatusStyles: Record<string, string> = {
-  '1': 'bg-blue-500/10 text-blue-500 border-blue-500/20', // New
+  '1': 'bg-gray-500/10 text-gray-600 border-gray-500/20', // New
   '2': 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20', // In Progress
   '3': 'bg-orange-500/10 text-orange-500 border-orange-500/20', // On Hold
   '6': 'bg-green-500/10 text-green-500 border-green-500/20', // Resolved
@@ -16,7 +16,7 @@ const incidentStatusStyles: Record<string, string> = {
 };
 
 const investigationStatusStyles: Record<string, string> = {
-  started: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  started: 'bg-gray-500/10 text-gray-600 border-gray-500/20',
   investigating: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
   rca_complete: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
   resolved: 'bg-green-500/10 text-green-500 border-green-500/20',

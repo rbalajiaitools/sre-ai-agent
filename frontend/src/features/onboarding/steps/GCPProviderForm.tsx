@@ -81,7 +81,7 @@ export function GCPProviderForm({ onValidated }: GCPProviderFormProps) {
           href="https://cloud.google.com/iam/docs/service-accounts-create"
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-blue-500 hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-lime-600 hover:underline"
         >
           View detailed guide
           <ExternalLink className="h-3 w-3" />

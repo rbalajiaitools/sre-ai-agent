@@ -94,36 +94,42 @@ export function ServiceDetailDrawer({ serviceName, onClose }: ServiceDetailDrawe
               <div>
                 <h4 className="font-semibold">Resources</h4>
                 <div className="mt-2 space-y-2">
-                  {service.resources.slice(0, 5).map((resource) => (
-                    <div
-                      key={resource.resource_id}
-                      className="rounded-lg border bg-card p-3 text-sm"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="font-medium">{resource.name}</p>
-                          <p className="text-xs text-muted-foreground">{resource.type}</p>
+                  {service.resources && service.resources.length > 0 ? (
+                    <>
+                      {service.resources.slice(0, 5).map((resource) => (
+                        <div
+                          key={resource.resource_id}
+                          className="rounded-lg border bg-card p-3 text-sm"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium">{resource.name}</p>
+                              <p className="text-xs text-muted-foreground">{resource.type}</p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div
+                                className={`h-2 w-2 rounded-full ${statusColors[resource.status]}`}
+                                aria-hidden="true"
+                              />
+                              <span className="text-xs text-muted-foreground">{resource.region}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <div
-                            className={`h-2 w-2 rounded-full ${statusColors[resource.status]}`}
-                            aria-hidden="true"
-                          />
-                          <span className="text-xs text-muted-foreground">{resource.region}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {service.resources.length > 5 && (
-                    <p className="text-xs text-muted-foreground">
-                      +{service.resources.length - 5} more resources
-                    </p>
+                      ))}
+                      {service.resources.length > 5 && (
+                        <p className="text-xs text-muted-foreground">
+                          +{service.resources.length - 5} more resources
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No resources discovered yet</p>
                   )}
                 </div>
               </div>
 
               {/* Past incidents */}
-              {service.past_incidents.length > 0 && (
+              {service.past_incidents && service.past_incidents.length > 0 && (
                 <div>
                   <h4 className="font-semibold">Past Incidents</h4>
                   <div className="mt-2 space-y-2">

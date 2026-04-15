@@ -10,27 +10,12 @@ import {
 } from './types';
 
 /**
- * Get all incidents for a tenant with optional filters
+ * Get all incidents for a tenant
  */
 export const getIncidents = async (
-  tenantId: string,
-  filter?: Partial<IncidentFilter>
+  tenantId: string
 ): Promise<ServiceNowIncident[]> => {
   const params = new URLSearchParams({ tenant_id: tenantId });
-
-  if (filter?.priorities && filter.priorities.length > 0) {
-    params.append('priorities', filter.priorities.join(','));
-  }
-  if (filter?.states && filter.states.length > 0) {
-    params.append('states', filter.states.join(','));
-  }
-  if (filter?.search) {
-    params.append('search', filter.search);
-  }
-  if (filter?.assignment_group) {
-    params.append('assignment_group', filter.assignment_group);
-  }
-
   return api.get<ServiceNowIncident[]>(`/incidents?${params.toString()}`);
 };
 

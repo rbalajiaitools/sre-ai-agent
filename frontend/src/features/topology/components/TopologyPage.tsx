@@ -3,7 +3,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { RefreshCw, Filter } from 'lucide-react';
+import { RefreshCw, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ServiceMapView } from './ServiceMapView';
@@ -20,6 +20,7 @@ export function TopologyPage() {
   const [providerFilter, setProviderFilter] = useState<ProviderType[]>([]);
   const [statusFilter, setStatusFilter] = useState<ServiceStatus[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
 
   const rediscovery = useTriggerRediscovery();
 
@@ -30,6 +31,17 @@ export function TopologyPage() {
       setActiveTab(tab);
     }
   }, [searchParams, activeTab]);
+
+  // Auto-dismiss success notification after 3 seconds
+  useEffect(() => {
+    if (rediscovery.isSuccess && !rediscovery.isPending) {
+      setShowSuccessNotification(true);
+      const timer = setTimeout(() => {
+        setShowSuccessNotification(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [rediscovery.isSuccess, rediscovery.isPending]);
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -97,17 +109,15 @@ export function TopologyPage() {
             <div className="space-y-2">
               <p className="text-sm font-medium">Provider</p>
               <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by provider">
-                {Object.values(ProviderType).map((provider) => (
-                  <Button
-                    key={provider}
-                    variant={providerFilter.includes(provider) ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => toggleProviderFilter(provider)}
-                    aria-pressed={providerFilter.includes(provider)}
-                  >
-                    {provider.toUpperCase()}
-                  </Button>
-                ))}
+                {/* Only show AWS for now */}
+                <Button
+                  variant={providerFilter.includes(ProviderType.AWS) ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => toggleProviderFilter(ProviderType.AWS)}
+                  aria-pressed={providerFilter.includes(ProviderType.AWS)}
+                >
+                  AWS
+                </Button>
               </div>
             </div>
 
@@ -169,6 +179,7 @@ export function TopologyPage() {
                   ? { service_name: searchParams.get('service')! }
                   : undefined
               }
+              onResourceClick={(resourceName) => setSelectedService(resourceName)}
             />
           </div>
         </TabsContent>
@@ -182,13 +193,59 @@ export function TopologyPage() {
         />
       )}
 
-      {/* Rediscovery notification */}
-      {rediscovery.isSuccess && (
-        <div className="fixed bottom-4 right-4 rounded-lg border bg-card p-4 shadow-lg" role="status">
-          <p className="text-sm font-medium">Rediscovery started</p>
-          <p className="text-xs text-muted-foreground">
-            Infrastructure mapping is in progress
-          </p>
+      {/* Rediscovery progress overlay */}
+      {rediscovery.isPending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="w-full max-w-md space-y-6 rounded-lg border bg-card p-8 shadow-lg">
+            <div className="text-center">
+              <RefreshCw className="mx-auto h-12 w-12 animate-spin text-primary" />
+              <h3 className="mt-4 text-lg font-semibold">Discovering Infrastructure</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Connecting to your AWS account and mapping services...
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                <p className="text-sm">Fetching AWS resources</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-primary animation-delay-200" />
+                <p className="text-sm">Analyzing service dependencies</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-primary animation-delay-400" />
+                <p className="text-sm">Building topology graph</p>
+              </div>
+            </div>
+
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full animate-progress bg-primary" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rediscovery success notification */}
+      {showSuccessNotification && (
+        <div className="fixed bottom-4 right-4 rounded-lg border bg-green-500/10 border-green-500/50 p-4 shadow-lg animate-in fade-in slide-in-from-bottom-5" role="status">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-green-600">Rediscovery Complete</p>
+              <p className="text-xs text-green-600">
+                Infrastructure topology has been updated
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={() => setShowSuccessNotification(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
 

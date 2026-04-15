@@ -7,7 +7,7 @@ import httpx
 from httpx import AsyncClient, Response
 
 from app.connectors.servicenow.config import AuthType, ServiceNowConfig
-from app.connectors.servicenow.models import IncidentFilter, RawIncident
+from app.connectors.servicenow.models import IncidentFilter, IncidentState, RawIncident
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ class ServiceNowClient:
         logger.info(
             "servicenow_client_initialized",
             instance=config.instance,
-            auth_type=config.auth_type.value,
+            auth_type=config.auth_type.value if hasattr(config.auth_type, 'value') else config.auth_type,
         )
 
     async def _get_client(self) -> AsyncClient:

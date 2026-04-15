@@ -12,6 +12,7 @@ import { IncidentMetadata } from './IncidentMetadata';
 import { IncidentWorkNotes } from './IncidentWorkNotes';
 import { useStartInvestigation } from '../hooks';
 import { useCreateThread } from '@/features/chat/hooks';
+import { ChatContext } from '@/features/chat/types';
 import { cn } from '@/lib/utils';
 import { priorityColors } from '@/lib/colors';
 
@@ -35,14 +36,15 @@ export function IncidentDetailPanel({
   };
 
   const handleSendToChat = () => {
-    createThreadMutation.mutate({
+    const context: ChatContext = {
       incident: {
         sys_id: incident.sys_id,
         number: incident.number,
         short_description: incident.short_description,
         priority: incident.priority,
       },
-    });
+    };
+    createThreadMutation.mutate(context);
   };
 
   const getPriorityColor = (priority: IncidentPriority) => {

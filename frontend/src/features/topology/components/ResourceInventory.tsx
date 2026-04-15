@@ -11,6 +11,7 @@ import type { ServiceStatus, ResourceFilters as ResourceFiltersType } from '../t
 
 interface ResourceInventoryProps {
   initialFilters?: ResourceFiltersType;
+  onResourceClick?: (resourceName: string) => void;
 }
 
 const providerIcons = {
@@ -35,12 +36,39 @@ const statusDotColors: Record<ServiceStatus, string> = {
   unknown: 'bg-gray-500',
 };
 
-export function ResourceInventory({ initialFilters }: ResourceInventoryProps) {
+export function ResourceInventory({ initialFilters, onResourceClick }: ResourceInventoryProps) {
   const [filters, setFilters] = useState<ResourceFiltersType>(initialFilters || {});
   const [search, setSearch] = useState('');
   const [selectedResource, setSelectedResource] = useState<string | null>(null);
 
-  const resourcesQuery = useResources({ ...filters, search });
+  // Convert array filters to single values for API
+  const apiFilters = {
+    provider: filters.providers?.[0],
+    resource_type: filters.types?.[0],
+    search: search || undefined,
+  };
+
+  const resourcesQuery = useResources(apiFilters);
+
+  // Client-side filtering for multiple selections
+  const filteredResources = resourcesQuery.data?.items.filter((resource) => {
+    // Filter by types (if multiple selected)
+    if (filters.types && filters.types.length > 0) {
+      if (!filters.types.includes(resource.type)) return false;
+    }
+    
+    // Filter by providers (if multiple selected)
+    if (filters.providers && filters.providers.length > 0) {
+      if (!filters.providers.includes(resource.provider)) return false;
+    }
+    
+    // Filter by statuses
+    if (filters.statuses && filters.statuses.length > 0) {
+      if (!filters.statuses.includes(resource.status)) return false;
+    }
+    
+    return true;
+  }) || [];
 
   const toggleProvider = (provider: ProviderType) => {
     const current = filters.providers || [];
@@ -97,7 +125,7 @@ export function ResourceInventory({ initialFilters }: ResourceInventoryProps) {
 
         {resourcesQuery.data && (
           <>
-            {resourcesQuery.data.items.length === 0 ? (
+            {filteredResources.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <p className="text-muted-foreground">No resources found</p>
               </div>
@@ -115,14 +143,19 @@ export function ResourceInventory({ initialFilters }: ResourceInventoryProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {resourcesQuery.data.items.map((resource) => {
+                  {filteredResources.map((resource) => {
                     const Icon = providerIcons[resource.provider];
                     const tags = Object.entries(resource.tags);
 
                     return (
                       <tr
                         key={resource.resource_id}
-                        onClick={() => setSelectedResource(resource.resource_id)}
+                        onClick={() => {
+                          setSelectedResource(resource.resource_id);
+                          if (onResourceClick) {
+                            onResourceClick(resource.name);
+                          }
+                        }}
                         className="cursor-pointer border-b transition-colors hover:bg-muted/50"
                         role="button"
                         tabIndex={0}
@@ -130,6 +163,9 @@ export function ResourceInventory({ initialFilters }: ResourceInventoryProps) {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
                             setSelectedResource(resource.resource_id);
+                            if (onResourceClick) {
+                              onResourceClick(resource.name);
+                            }
                           }
                         }}
                         aria-label={`View details for ${resource.name}`}

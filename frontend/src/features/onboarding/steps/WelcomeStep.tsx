@@ -20,8 +20,8 @@ export function WelcomeStep({ onNext }: WelcomeStepProps) {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="rounded-lg border bg-card p-6 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10">
-            <Brain className="h-6 w-6 text-blue-500" />
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-lime-500/10">
+            <Brain className="h-6 w-6 text-lime-600" />
           </div>
           <h3 className="mt-4 font-semibold">AI-Powered RCA</h3>
           <p className="mt-2 text-sm text-muted-foreground">

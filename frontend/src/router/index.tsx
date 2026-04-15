@@ -12,7 +12,9 @@ import { InvestigationsPage } from '@/features/investigations/components/Investi
 import { InvestigationDetailPage } from '@/features/investigations/components/InvestigationDetailPage';
 import { TopologyPage } from '@/features/topology/components/TopologyPage';
 import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
+import { SimulationPage } from '@/features/simulation/components/SimulationPage';
 import { SettingsPage } from '@/pages/SettingsPage';
+import { DebugPage } from '@/pages/DebugPage';
 
 /**
  * Protected Route wrapper - redirects to login if not authenticated
@@ -115,10 +117,26 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/simulation',
+    element: (
+      <ProtectedLayout>
+        <SimulationPage />
+      </ProtectedLayout>
+    ),
+  },
+  {
     path: '/settings/*',
     element: (
       <ProtectedLayout>
         <SettingsPage />
+      </ProtectedLayout>
+    ),
+  },
+  {
+    path: '/debug',
+    element: (
+      <ProtectedLayout>
+        <DebugPage />
       </ProtectedLayout>
     ),
   },

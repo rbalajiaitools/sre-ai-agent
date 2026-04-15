@@ -139,6 +139,31 @@ export function useCreateThread() {
 }
 
 /**
+ * Hook to delete a thread
+ */
+export function useDeleteThread() {
+  const queryClient = useQueryClient();
+  const tenant = useTenant();
+
+  return useMutation({
+    mutationFn: (threadId: string) => {
+      return fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/chat/threads/${threadId}?tenant_id=${tenant!.id}`, {
+        method: 'DELETE',
+      }).then(res => {
+        if (!res.ok) throw new Error('Failed to delete thread');
+        return res.json();
+      });
+    },
+    onSuccess: () => {
+      // Invalidate threads list
+      queryClient.invalidateQueries({
+        queryKey: ['chat', 'threads'],
+      });
+    },
+  });
+}
+
+/**
  * Hook to poll investigation progress
  */
 export function useInvestigationProgress(

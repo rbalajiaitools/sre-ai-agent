@@ -1,8 +1,8 @@
 /**
  * Investigations Page - table layout showing all investigations
  */
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { Loader2, FileSearch } from 'lucide-react';
 import { useInvestigations } from '../hooks';
@@ -13,10 +13,19 @@ import { statusColors } from '@/lib/colors';
 
 export function InvestigationsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState<InvestigationFilters>({});
   const { data: response, isLoading, isError } = useInvestigations(filters);
 
   const investigations = response?.items || [];
+
+  // Handle selected query parameter - redirect to detail page
+  useEffect(() => {
+    const selectedId = searchParams.get('selected');
+    if (selectedId) {
+      navigate(`/investigations/${selectedId}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
 
   const getStatusBadge = (status: InvestigationStatus) => {
     switch (status) {

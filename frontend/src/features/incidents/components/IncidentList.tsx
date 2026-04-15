@@ -1,7 +1,6 @@
 /**
- * Incident List - virtualized list of incidents
+ * Incident List - simple scrollable list of incidents
  */
-import { List } from 'react-window';
 import { Loader2 } from 'lucide-react';
 import { ServiceNowIncident } from '../types';
 import { IncidentRow } from './IncidentRow';
@@ -68,27 +67,16 @@ export function IncidentList({
     );
   }
 
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
-    const incident = sortedIncidents[index];
-    return (
-      <div style={style}>
+  return (
+    <div className="overflow-y-auto" style={{ height: `${height}px` }}>
+      {sortedIncidents.map((incident) => (
         <IncidentRow
+          key={incident.sys_id}
           incident={incident}
           isSelected={selectedIncidentId === incident.sys_id}
           onClick={() => onIncidentSelect(incident)}
         />
-      </div>
-    );
-  };
-
-  return (
-    <List
-      height={height}
-      rowCount={sortedIncidents.length}
-      rowHeight={88}
-      width="100%"
-      rowComponent={Row}
-      rowProps={{}}
-    />
+      ))}
+    </div>
   );
 }

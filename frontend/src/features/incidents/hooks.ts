@@ -16,13 +16,18 @@ import { IncidentFilter } from './types';
 /**
  * Hook to fetch incidents with optional filters
  */
-export function useIncidents(filter?: Partial<IncidentFilter>) {
+export function useIncidents() {
   const tenant = useTenant();
 
   return useQuery({
-    queryKey: ['incidents', tenant?.id, filter],
-    queryFn: () => getIncidents(tenant!.id, filter),
-    enabled: !!tenant,
+    queryKey: ['incidents', tenant?.id],
+    queryFn: () => {
+      if (!tenant?.id) {
+        throw new Error('No tenant ID available');
+      }
+      return getIncidents(tenant.id);
+    },
+    enabled: !!tenant?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
@@ -66,7 +71,6 @@ export function useStartInvestigation() {
   const queryClient = useQueryClient();
   const tenant = useTenant();
   const navigate = useNavigate();
-  const { setActiveChatId } = useAppStore();
 
   return useMutation({
     mutationFn: (incidentNumber: string) =>
@@ -77,9 +81,8 @@ export function useStartInvestigation() {
         queryKey: ['incidents'],
       });
 
-      // Set active chat and navigate
-      setActiveChatId(data.chat_thread_id);
-      navigate(`/chat/${data.chat_thread_id}`);
+      // Navigate to investigations page with the investigation selected
+      navigate(`/investigations?selected=${data.investigation_id}`);
     },
   });
 }

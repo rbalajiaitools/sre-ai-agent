@@ -73,7 +73,7 @@ export function AzureProviderForm({ onValidated }: AzureProviderFormProps) {
           href="https://learn.microsoft.com/en-us/azure/active-directory/develop/howto-create-service-principal-portal"
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-blue-500 hover:underline"
+          className="mt-2 inline-flex items-center gap-1 text-lime-600 hover:underline"
         >
           View detailed guide
           <ExternalLink className="h-3 w-3" />

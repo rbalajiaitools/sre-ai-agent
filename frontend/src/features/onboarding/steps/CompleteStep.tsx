@@ -49,8 +49,8 @@ export function CompleteStep({ providers, discoveryResult }: CompleteStepProps) 
           className="flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors hover:border-primary"
           aria-label="View your incidents"
         >
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-500/10">
-            <AlertCircle className="h-5 w-5 text-blue-500" aria-hidden="true" />
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-lime-500/10">
+            <AlertCircle className="h-5 w-5 text-lime-600" aria-hidden="true" />
           </div>
           <div className="flex-1">
             <h4 className="font-medium">View Your Incidents</h4>

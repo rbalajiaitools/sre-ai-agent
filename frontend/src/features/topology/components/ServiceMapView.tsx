@@ -30,10 +30,15 @@ const nodeTypes = {
   service: ServiceFlowNode,
 };
 
-const edgeStyles = {
+const edgeStyles: Record<string, { strokeDasharray: string; animated: boolean }> = {
   DEPENDS_ON: { strokeDasharray: '0', animated: false },
   CALLS: { strokeDasharray: '5,5', animated: true },
   READS_FROM: { strokeDasharray: '2,2', animated: false },
+  WRITES_TO: { strokeDasharray: '2,2', animated: false },
+  CONTAINS: { strokeDasharray: '0', animated: false },
+  HOSTS: { strokeDasharray: '0', animated: false },
+  ROUTES_TO: { strokeDasharray: '5,5', animated: false },
+  INVOKES: { strokeDasharray: '5,5', animated: true },
 };
 
 // Dagre layout configuration
@@ -106,23 +111,27 @@ export function ServiceMapView({
     );
 
     // Convert to React Flow edges
-    const flowEdges: Edge[] = filteredEdges.map((edge: ServiceEdge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      type: 'smoothstep',
-      animated: edgeStyles[edge.relationship].animated,
-      style: {
-        strokeDasharray: edgeStyles[edge.relationship].strokeDasharray,
-        stroke: 'hsl(var(--muted-foreground))',
-      },
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        color: 'hsl(var(--muted-foreground))',
-      },
-      label: edge.relationship.replace('_', ' '),
-      labelStyle: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' },
-    }));
+    const flowEdges: Edge[] = filteredEdges.map((edge: ServiceEdge) => {
+      const edgeStyle = edgeStyles[edge.relationship] || { strokeDasharray: '0', animated: false };
+      
+      return {
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        type: 'smoothstep',
+        animated: edgeStyle.animated,
+        style: {
+          strokeDasharray: edgeStyle.strokeDasharray,
+          stroke: 'hsl(var(--muted-foreground))',
+        },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: 'hsl(var(--muted-foreground))',
+        },
+        label: edge.relationship.replace(/_/g, ' '),
+        labelStyle: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' },
+      };
+    });
 
     return { flowNodes, flowEdges };
   }, [topologyQuery.data, providerFilter, statusFilter]);
@@ -155,12 +164,28 @@ export function ServiceMapView({
   }
 
   if (topologyQuery.isError) {
+    const errorMessage = topologyQuery.error?.message || '';
+    const isNoIntegration = errorMessage.includes('No AWS integration') || errorMessage.includes('No active AWS integration');
+    
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="text-center">
-          <p className="text-sm text-red-500">
-            Failed to load topology: {topologyQuery.error?.message}
+        <div className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {isNoIntegration ? 'No AWS integration configured' : `Failed to load topology: ${errorMessage}`}
           </p>
+          {isNoIntegration && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Configure AWS credentials to discover your infrastructure
+              </p>
+              <a
+                href="/settings"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2"
+              >
+                Go to Settings
+              </a>
+            </div>
+          )}
         </div>
       </div>
     );
