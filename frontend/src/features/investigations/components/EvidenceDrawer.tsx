@@ -1,5 +1,5 @@
 /**
- * Evidence Drawer - right panel with raw evidence
+ * Evidence Drawer - right panel with detailed agent findings
  */
 import { useState } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
@@ -13,16 +13,16 @@ interface EvidenceDrawerProps {
 export function EvidenceDrawer({ agents }: EvidenceDrawerProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<string>('all');
-  const [expandedEvidence, setExpandedEvidence] = useState<Set<string>>(new Set());
+  const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set(['infrastructure', 'logs', 'metrics']));
 
-  const toggleEvidence = (key: string) => {
-    const newExpanded = new Set(expandedEvidence);
-    if (newExpanded.has(key)) {
-      newExpanded.delete(key);
+  const toggleAgent = (agentType: string) => {
+    const newExpanded = new Set(expandedAgents);
+    if (newExpanded.has(agentType)) {
+      newExpanded.delete(agentType);
     } else {
-      newExpanded.add(key);
+      newExpanded.add(agentType);
     }
-    setExpandedEvidence(newExpanded);
+    setExpandedAgents(newExpanded);
   };
 
   // Filter agents
@@ -70,84 +70,104 @@ export function EvidenceDrawer({ agents }: EvidenceDrawerProps) {
           <option value="all">All Agents</option>
           {agents.map((agent) => (
             <option key={agent.agent_type} value={agent.agent_type}>
-              {agent.agent_type}
+              {agent.agent_type.charAt(0).toUpperCase() + agent.agent_type.slice(1)}
             </option>
           ))}
         </select>
       </div>
 
-      {/* Evidence list */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Evidence list - Grouped by agent */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {filteredAgents.map((agent) => {
           const evidence = getFilteredEvidence(agent);
-          if (evidence.length === 0) return null;
+          const isExpanded = expandedAgents.has(agent.agent_type);
 
           return (
-            <div key={agent.agent_type} className="space-y-2">
-              <h4 className="text-sm font-semibold text-muted-foreground">
-                {agent.agent_type}
-              </h4>
-              {evidence.map((item, index) => {
-                const key = `${agent.agent_type}-${index}`;
-                const isExpanded = expandedEvidence.has(key);
-                const isLong = item.length > 150;
+            <div key={agent.agent_type} className="border rounded-lg">
+              {/* Agent header - collapsible */}
+              <button
+                onClick={() => toggleAgent(agent.agent_type)}
+                className="w-full p-3 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-t-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm capitalize">
+                    {agent.agent_type}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    ({evidence.length} findings)
+                  </span>
+                </div>
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
 
-                return (
-                  <div
-                    key={key}
-                    className="p-3 rounded-lg border bg-card"
-                  >
-                    {/* Source info */}
-                    <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-                      <span className="font-medium">{agent.agent_type}</span>
-                      {agent.providers_queried.length > 0 && (
-                        <>
-                          <span>•</span>
-                          <span>{agent.providers_queried.join(', ')}</span>
-                        </>
-                      )}
+              {/* Agent evidence - expanded */}
+              {isExpanded && (
+                <div className="p-3 pt-0 space-y-2">
+                  {/* Provider info */}
+                  {agent.providers_queried.length > 0 && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                      <span className="font-medium">Providers:</span>
+                      <span>{agent.providers_queried.join(', ').toUpperCase()}</span>
                     </div>
+                  )}
 
-                    {/* Evidence content */}
-                    <div className="text-sm">
-                      {isLong && !isExpanded ? (
-                        <>
-                          <p>{item.slice(0, 150)}...</p>
-                          <button
-                            onClick={() => toggleEvidence(key)}
-                            className="text-primary hover:underline text-xs mt-1"
-                            aria-label="Show full evidence"
-                          >
-                            Show more
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <p className="whitespace-pre-wrap">{item}</p>
-                          {isLong && (
-                            <button
-                              onClick={() => toggleEvidence(key)}
-                              className="text-primary hover:underline text-xs mt-1"
-                              aria-label="Show less evidence"
-                            >
-                              Show less
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
+                  {/* Duration */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                    <span className="font-medium">Duration:</span>
+                    <span>{agent.duration_seconds}s</span>
                   </div>
-                );
-              })}
+
+                  {/* Evidence items */}
+                  {evidence.length > 0 ? (
+                    <div className="space-y-2">
+                      {evidence.map((item, index) => (
+                        <div
+                          key={index}
+                          className="p-2 rounded bg-muted/50 text-xs"
+                        >
+                          <p className="whitespace-pre-wrap break-words">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No evidence found
+                    </p>
+                  )}
+
+                  {/* Analysis details if available */}
+                  {agent.analysis && Object.keys(agent.analysis).length > 0 && (
+                    <details className="mt-3">
+                      <summary className="text-xs font-medium cursor-pointer hover:text-primary">
+                        View raw analysis data
+                      </summary>
+                      <pre className="mt-2 p-2 rounded bg-muted text-xs overflow-x-auto">
+                        {JSON.stringify(agent.analysis, null, 2)}
+                      </pre>
+                    </details>
+                  )}
+
+                  {/* Error if any */}
+                  {agent.error && (
+                    <div className="mt-2 p-2 rounded bg-red-50 dark:bg-red-900/20 text-xs text-red-600 dark:text-red-400">
+                      <span className="font-medium">Error:</span> {agent.error}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
 
         {/* Empty state */}
-        {filteredAgents.every((a) => getFilteredEvidence(a).length === 0) && (
+        {filteredAgents.length === 0 && (
           <div className="flex items-center justify-center h-32 text-center">
             <p className="text-sm text-muted-foreground">
-              {searchQuery ? 'No evidence matches your search' : 'No evidence available'}
+              No agents available
             </p>
           </div>
         )}

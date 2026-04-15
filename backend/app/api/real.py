@@ -717,7 +717,7 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                 "error": str(e)
             })
         
-        # AGENT 2: Logs Agent - Query CloudWatch Logs
+        # AGENT 2: Logs Agent - Get latest logs and use AI analysis
         logger.info("running_logs_agent", service=service_name)
         logs_findings = []
         
@@ -735,48 +735,119 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
                 log_group_name = log_groups[0]['logGroupName']
                 logs_findings.append(f"Analyzing log group: {log_group_name}")
                 
-                # Query logs for errors in the last hour
-                from datetime import timedelta
-                end_time = datetime.now()
-                start_time = end_time - timedelta(hours=1)
-                
+                # Get latest log streams (most recent first)
                 try:
-                    # Start query
-                    query_response = logs_client.start_query(
+                    streams_response = logs_client.describe_log_streams(
                         logGroupName=log_group_name,
-                        startTime=int(start_time.timestamp()),
-                        endTime=int(end_time.timestamp()),
-                        queryString='fields @timestamp, @message | filter @message like /ERROR/ or @message like /Exception/ | sort @timestamp desc | limit 20'
+                        orderBy='LastEventTime',
+                        descending=True,
+                        limit=5  # Get 5 most recent streams
                     )
                     
-                    query_id = query_response['queryId']
+                    log_streams = streams_response.get('logStreams', [])
                     
-                    # Wait for query to complete (with timeout)
-                    import asyncio
-                    for _ in range(10):
-                        await asyncio.sleep(0.5)
-                        results_response = logs_client.get_query_results(queryId=query_id)
+                    if log_streams:
+                        # Collect latest log events from recent streams
+                        all_log_events = []
                         
-                        if results_response['status'] == 'Complete':
-                            results = results_response.get('results', [])
+                        for stream in log_streams[:3]:  # Check 3 most recent streams
+                            stream_name = stream['logStreamName']
                             
-                            if results:
-                                logs_findings.append(f"Found {len(results)} error logs in the last hour")
+                            try:
+                                events_response = logs_client.get_log_events(
+                                    logGroupName=log_group_name,
+                                    logStreamName=stream_name,
+                                    limit=50,  # Get latest 50 events per stream
+                                    startFromHead=False  # Get most recent events
+                                )
                                 
-                                # Show first few errors
-                                for i, result in enumerate(results[:3]):
-                                    message = next((field['value'] for field in result if field['field'] == '@message'), '')
-                                    timestamp = next((field['value'] for field in result if field['field'] == '@timestamp'), '')
-                                    logs_findings.append(f"Error {i+1} at {timestamp}: {message[:100]}...")
+                                events = events_response.get('events', [])
+                                all_log_events.extend(events)
+                            except Exception as stream_error:
+                                logger.warning("log_stream_error", stream=stream_name, error=str(stream_error))
+                        
+                        if all_log_events:
+                            # Sort by timestamp (most recent first)
+                            all_log_events.sort(key=lambda x: x['timestamp'], reverse=True)
+                            
+                            # Take latest 100 events
+                            latest_events = all_log_events[:100]
+                            
+                            logs_findings.append(f"Retrieved {len(latest_events)} latest log events")
+                            
+                            # Prepare logs for AI analysis
+                            log_messages = []
+                            error_count = 0
+                            warning_count = 0
+                            
+                            for event in latest_events:
+                                message = event.get('message', '')
+                                log_messages.append(message)
+                                
+                                # Count errors and warnings
+                                message_lower = message.lower()
+                                if 'error' in message_lower or 'exception' in message_lower:
+                                    error_count += 1
+                                elif 'warn' in message_lower:
+                                    warning_count += 1
+                            
+                            logs_findings.append(f"Found {error_count} errors and {warning_count} warnings in latest logs")
+                            
+                            # Use AI to analyze logs if there are errors
+                            if error_count > 0:
+                                try:
+                                    from openai import AzureOpenAI
+                                    from app.core.config import get_settings
+                                    
+                                    settings = get_settings()
+                                    
+                                    ai_client = AzureOpenAI(
+                                        api_key=settings.llm.azure_openai_api_key,
+                                        api_version=settings.llm.azure_openai_api_version,
+                                        azure_endpoint=settings.llm.azure_openai_endpoint
+                                    )
+                                    
+                                    # Prepare log sample for AI (limit to avoid token limits)
+                                    log_sample = '\n'.join(log_messages[:50])
+                                    
+                                    ai_prompt = f"""Analyze these latest CloudWatch logs from Lambda function '{service_name}' and identify any issues:
+
+{log_sample}
+
+Provide:
+1. Key errors or exceptions found
+2. Patterns or recurring issues
+3. Potential root cause
+4. Severity assessment
+
+Be concise and focus on actionable insights."""
+                                    
+                                    ai_response = ai_client.chat.completions.create(
+                                        model=settings.llm.azure_openai_deployment_name,
+                                        messages=[
+                                            {"role": "system", "content": "You are an expert SRE analyzing application logs. Provide concise, actionable insights."},
+                                            {"role": "user", "content": ai_prompt}
+                                        ],
+                                        temperature=0.3,
+                                        max_tokens=500
+                                    )
+                                    
+                                    ai_analysis = ai_response.choices[0].message.content
+                                    logs_findings.append(f"AI Analysis: {ai_analysis}")
+                                    
+                                except Exception as ai_error:
+                                    logger.warning("ai_log_analysis_error", error=str(ai_error))
+                                    logs_findings.append("AI analysis unavailable")
                             else:
-                                logs_findings.append("No error logs found in the last hour")
-                            break
-                        elif results_response['status'] == 'Failed':
-                            logs_findings.append("Log query failed")
-                            break
-                except Exception as query_error:
-                    logger.warning("logs_query_error", error=str(query_error))
-                    logs_findings.append(f"Could not query logs: {str(query_error)}")
+                                logs_findings.append("No errors found in latest logs")
+                        else:
+                            logs_findings.append("No log events found in recent streams")
+                    else:
+                        logs_findings.append("No log streams found")
+                        
+                except Exception as stream_error:
+                    logger.warning("log_streams_error", error=str(stream_error))
+                    logs_findings.append(f"Could not retrieve log streams: {str(stream_error)}")
             else:
                 logs_findings.append(f"No log groups found for {service_name}")
             
