@@ -205,3 +205,6 @@ export function IncidentDetailPanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
