@@ -70,3 +70,47 @@ export const exportPostMortem = async (id: string): Promise<Blob> => {
 
   return response.blob();
 };
+
+/**
+ * Cancel a running investigation
+ */
+export const cancelInvestigation = async (id: string): Promise<{ success: boolean; message: string }> => {
+  return api.post<{ success: boolean; message: string }>(`/investigations/${id}/cancel`, {});
+};
+
+/**
+ * Start investigation for a service
+ */
+export const startServiceInvestigation = async (
+  tenantId: string,
+  serviceName: string
+): Promise<{ investigation_id: string; status: string; message: string }> => {
+  return api.post<{ investigation_id: string; status: string; message: string }>(
+    '/investigations/start-service',
+    {
+      tenant_id: tenantId,
+      service_name: serviceName,
+    }
+  );
+};
+
+/**
+ * Delete a single investigation
+ */
+export const deleteInvestigation = async (id: string): Promise<{ success: boolean; message: string }> => {
+  return api.delete<{ success: boolean; message: string }>(`/investigations/${id}`);
+};
+
+/**
+ * Delete multiple investigations in bulk
+ */
+export const bulkDeleteInvestigations = async (
+  investigationIds: string[]
+): Promise<{ success: boolean; deleted_count: number; failed_count: number; message: string }> => {
+  return api.post<{ success: boolean; deleted_count: number; failed_count: number; message: string }>(
+    '/investigations/bulk-delete',
+    {
+      investigation_ids: investigationIds,
+    }
+  );
+};

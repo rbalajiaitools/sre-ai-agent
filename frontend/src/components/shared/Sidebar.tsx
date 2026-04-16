@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  BookOpen,
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
@@ -25,11 +26,12 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { name: 'Command Center', path: '/command-center', icon: BarChart3 },
   { name: 'Chat', path: '/chat', icon: MessageSquare },
   { name: 'Incidents', path: '/incidents', icon: AlertCircle },
   { name: 'Investigations', path: '/investigations', icon: Search },
   { name: 'Topology', path: '/topology', icon: Network },
-  { name: 'Dashboard', path: '/dashboard', icon: BarChart3 },
+  { name: 'Knowledge Graph', path: '/knowledge', icon: BookOpen },
   { name: 'Simulation', path: '/simulation', icon: Zap },
 ];
 
@@ -39,7 +41,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'flex flex-col bg-card border-r transition-all duration-300 ease-in-out relative',
+        'flex flex-col bg-gray-100 border-r transition-all duration-300 ease-in-out relative',
         sidebarCollapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -66,9 +68,9 @@ export function Sidebar() {
         'flex h-16 items-center border-b transition-all duration-300',
         sidebarCollapsed ? 'justify-center px-2' : 'gap-3 px-6'
       )}>
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-lime-400 to-lime-600 shadow-lg flex-shrink-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 shadow-lg flex-shrink-0">
           <svg
-            className="h-5 w-5 text-gray-900"
+            className="h-5 w-5 text-white"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -104,9 +106,9 @@ export function Sidebar() {
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-                  'hover:bg-accent group relative',
+                  'hover:bg-muted group relative',
                   isActive
-                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    ? 'bg-muted text-foreground'
                     : 'text-muted-foreground hover:text-foreground',
                   sidebarCollapsed && 'justify-center'
                 )
@@ -147,9 +149,9 @@ export function Sidebar() {
           className={({ isActive }) =>
             cn(
               'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
-              'hover:bg-accent group relative',
+              'hover:bg-muted group relative',
               isActive
-                ? 'bg-primary text-primary-foreground shadow-sm'
+                ? 'bg-muted text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
               sidebarCollapsed && 'justify-center'
             )

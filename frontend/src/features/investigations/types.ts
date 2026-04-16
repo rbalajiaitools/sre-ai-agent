@@ -15,6 +15,7 @@ export interface AgentResult {
   success: boolean;
   analysis: Record<string, unknown>;
   evidence: string[];
+  ai_analysis?: string;  // AI-generated analysis text
   duration_seconds: number;
   providers_queried: string[];
   error: string | null;

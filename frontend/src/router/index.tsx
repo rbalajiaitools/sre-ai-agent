@@ -12,6 +12,8 @@ import { InvestigationsPage } from '@/features/investigations/components/Investi
 import { InvestigationDetailPage } from '@/features/investigations/components/InvestigationDetailPage';
 import { TopologyPage } from '@/features/topology/components/TopologyPage';
 import { DashboardPage } from '@/features/dashboard/components/DashboardPage';
+import { CommandCenterPage } from '@/features/command-center';
+import { KnowledgeGraphPage } from '@/features/knowledge';
 import { SimulationPage } from '@/features/simulation/components/SimulationPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { DebugPage } from '@/pages/DebugPage';
@@ -46,7 +48,7 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/chat" replace />,
+    element: <Navigate to="/command-center" replace />,
   },
   {
     path: '/login',
@@ -58,6 +60,14 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <OnboardingPage />
       </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/command-center',
+    element: (
+      <ProtectedLayout>
+        <CommandCenterPage />
+      </ProtectedLayout>
     ),
   },
   {
@@ -105,6 +115,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedLayout>
         <TopologyPage />
+      </ProtectedLayout>
+    ),
+  },
+  {
+    path: '/knowledge',
+    element: (
+      <ProtectedLayout>
+        <KnowledgeGraphPage />
       </ProtectedLayout>
     ),
   },

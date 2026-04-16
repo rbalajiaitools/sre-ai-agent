@@ -2,9 +2,10 @@
  * Service detail drawer
  */
 import { useNavigate } from 'react-router-dom';
-import { X, MessageSquare, List, Cloud, Server } from 'lucide-react';
+import { X, Search, List, Cloud, Server } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useServiceDetail } from '../hooks';
+import { useStartServiceInvestigation } from '@/features/investigations/hooks';
 import { ServiceHealthSummary } from './ServiceHealthSummary';
 import { ProviderType } from '@/types';
 import type { ServiceStatus } from '../types';
@@ -32,6 +33,13 @@ const statusColors: Record<ServiceStatus, string> = {
 export function ServiceDetailDrawer({ serviceName, onClose }: ServiceDetailDrawerProps) {
   const navigate = useNavigate();
   const serviceQuery = useServiceDetail(serviceName);
+  const startInvestigationMutation = useStartServiceInvestigation();
+
+  const handleInvestigate = () => {
+    if (serviceName) {
+      startInvestigationMutation.mutate(serviceName);
+    }
+  };
 
   if (!serviceName) return null;
 
@@ -172,10 +180,11 @@ export function ServiceDetailDrawer({ serviceName, onClose }: ServiceDetailDrawe
               <div className="space-y-2">
                 <Button
                   className="w-full"
-                  onClick={() => navigate(`/chat?service=${encodeURIComponent(service.name)}`)}
+                  onClick={handleInvestigate}
+                  disabled={startInvestigationMutation.isPending}
                 >
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  Investigate this Service
+                  <Search className="mr-2 h-4 w-4" />
+                  {startInvestigationMutation.isPending ? 'Starting Investigation...' : 'Investigate this Service'}
                 </Button>
                 <Button
                   variant="outline"

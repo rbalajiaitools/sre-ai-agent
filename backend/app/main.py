@@ -101,6 +101,12 @@ async def request_id_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+        
+        # Add no-cache headers for investigation endpoints to enable live updates
+        if "/investigations/" in request.url.path:
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
 
         logger.info("request_completed", status_code=response.status_code)
 

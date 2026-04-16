@@ -40,6 +40,19 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 
+async def get_db_session():
+    """Get database session for background tasks.
+    
+    Yields:
+        AsyncSession: Database session
+    """
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+
 async def init_db() -> None:
     """Initialize database - create all tables."""
     async with engine.begin() as conn:

@@ -3,6 +3,7 @@
  */
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { RCAResult } from '../types';
 import { cn } from '@/lib/utils';
 import { confidenceColors, severityColors } from '@/lib/colors';
@@ -76,11 +77,35 @@ export function RCACard({ rca }: RCACardProps) {
       {/* Root Cause */}
       <div className="p-6 rounded-lg border bg-card">
         <h3 className="text-lg font-semibold mb-3">Root Cause</h3>
-        <p className="text-base leading-relaxed">{rca.root_cause}</p>
+        <div className="prose prose-sm max-w-none dark:prose-invert">
+          <ReactMarkdown
+            components={{
+              h1: ({node, ...props}) => <h1 className="text-xl font-bold my-3" {...props} />,
+              h2: ({node, ...props}) => <h2 className="text-lg font-bold my-2" {...props} />,
+              h3: ({node, ...props}) => <h3 className="text-base font-semibold my-2" {...props} />,
+              h4: ({node, ...props}) => <h4 className="text-sm font-semibold my-2" {...props} />,
+              p: ({node, ...props}) => <p className="my-2" {...props} />,
+              strong: ({node, ...props}) => <strong className="font-semibold" {...props} />,
+              em: ({node, ...props}) => <em className="italic" {...props} />,
+              ul: ({node, ...props}) => <ul className="list-disc ml-6 my-2" {...props} />,
+              ol: ({node, ...props}) => <ol className="list-decimal ml-6 my-2" {...props} />,
+              li: ({node, ...props}) => <li className="my-1" {...props} />,
+              code: ({node, inline, ...props}) => 
+                inline ? (
+                  <code className="bg-muted px-1 py-0.5 rounded text-sm font-mono" {...props} />
+                ) : (
+                  <code className="block bg-muted p-3 rounded my-2 overflow-x-auto" {...props} />
+                ),
+              blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary pl-4 my-2 italic" {...props} />,
+            }}
+          >
+            {rca.root_cause}
+          </ReactMarkdown>
+        </div>
       </div>
 
       {/* Incident Timeline */}
-      {rca.incident_timeline.length > 0 && (
+      {rca.incident_timeline && rca.incident_timeline.length > 0 && (
         <div className="p-6 rounded-lg border bg-card">
           <h3 className="text-lg font-semibold mb-4">Incident Timeline</h3>
           <div className="space-y-4">
@@ -114,7 +139,7 @@ export function RCACard({ rca }: RCACardProps) {
       )}
 
       {/* Affected Resources */}
-      {rca.affected_resources.length > 0 && (
+      {rca.affected_resources && rca.affected_resources.length > 0 && (
         <div className="p-6 rounded-lg border bg-card">
           <h3 className="text-lg font-semibold mb-4">Affected Resources</h3>
           <div className="grid grid-cols-1 gap-3">
@@ -131,7 +156,7 @@ export function RCACard({ rca }: RCACardProps) {
       )}
 
       {/* Contributing Factors */}
-      {rca.contributing_factors.length > 0 && (
+      {rca.contributing_factors && rca.contributing_factors.length > 0 && (
         <div className="p-6 rounded-lg border bg-card">
           <h3 className="text-lg font-semibold mb-4">Contributing Factors</h3>
           <ol className="list-decimal list-inside space-y-2">
@@ -145,7 +170,7 @@ export function RCACard({ rca }: RCACardProps) {
       )}
 
       {/* Supporting Evidence */}
-      {rca.supporting_evidence.length > 0 && (
+      {rca.supporting_evidence && rca.supporting_evidence.length > 0 && (
         <div className="p-6 rounded-lg border bg-card">
           <button
             onClick={() => setEvidenceExpanded(!evidenceExpanded)}
@@ -157,7 +182,7 @@ export function RCACard({ rca }: RCACardProps) {
             ) : (
               <ChevronRight className="h-5 w-5" aria-hidden="true" />
             )}
-            Supporting Evidence ({rca.supporting_evidence.length})
+            Supporting Evidence ({rca.supporting_evidence?.length || 0})
           </button>
           {evidenceExpanded && (
             <div className="space-y-3">

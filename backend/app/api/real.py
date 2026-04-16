@@ -1,11 +1,11 @@
 """Real API endpoints for ServiceNow and AWS integration with database persistence."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -585,7 +585,11 @@ class StartInvestigationRequest(BaseModel):
 
 
 @router.post("/investigations/start")
-async def start_investigation_real(request: StartInvestigationRequest, db: AsyncSession = Depends(get_db)):
+async def start_investigation_real(
+    request: StartInvestigationRequest, 
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     """Start investigation for incident with real agent execution."""
     try:
         tenant_id = request.tenant_id
@@ -610,591 +614,18 @@ async def start_investigation_real(request: StartInvestigationRequest, db: Async
         
         logger.info("investigation_created", investigation_id=investigation.id)
         
-        # Get ServiceNow connector to fetch full incident details
-        connector = get_servicenow_connector()
-        full_incident = None
-        
-        try:
-            from uuid import UUID
-            tenant_uuid = UUID(tenant_id)
-            full_incident = await connector.get_incident(tenant_uuid, incident_number)
-        except Exception as e:
-            logger.warning("servicenow_fetch_failed", error=str(e))
-        
-        # Extract service name from incident
-        service_name = incident.cmdb_ci or "unknown-service"
-        
-        # Parse incident description to identify affected resource
-        # Look for Lambda function names, EC2 instance IDs, etc.
-        description = (incident.description or incident.short_description or "").lower()
-        
-        # Get AWS credentials
-        aws_integrations = await crud.get_integrations(db, tenant_id, "aws")
-        if not aws_integrations:
-            raise HTTPException(status_code=400, detail="AWS integration not configured")
-        
-        aws_integration = aws_integrations[0]
-        aws_config = crud.decrypt_integration_config(aws_integration)
-        
-        import boto3
-        from botocore.exceptions import ClientError
-        
-        # Create AWS session
-        session = boto3.Session(
-            aws_access_key_id=aws_config.get("access_key_id"),
-            aws_secret_access_key=aws_config.get("secret_access_key"),
-            region_name=aws_config.get("region", "us-east-1")
-        )
-        
-        # Initialize agent results
-        agent_results = []
-        
-        # AGENT 1: Infrastructure Agent - Get actual AWS resource details
-        logger.info("running_infrastructure_agent", service=service_name)
-        infra_findings = []
-        
-        try:
-            # Check if it's a Lambda function
-            if "lambda" in description or "function" in description:
-                lambda_client = session.client('lambda')
-                
-                # Try to find the Lambda function
-                functions_response = lambda_client.list_functions()
-                matching_functions = []
-                
-                for func in functions_response.get('Functions', []):
-                    func_name = func.get('FunctionName', '')
-                    if service_name.lower() in func_name.lower() or func_name.lower() in description:
-                        matching_functions.append(func)
-                        
-                        # Get function configuration
-                        try:
-                            config = lambda_client.get_function_configuration(FunctionName=func_name)
-                            infra_findings.append(f"Found Lambda function: {func_name}")
-                            infra_findings.append(f"Runtime: {config.get('Runtime')}, Memory: {config.get('MemorySize')}MB")
-                            infra_findings.append(f"Timeout: {config.get('Timeout')}s, Last Modified: {config.get('LastModified')}")
-                            
-                            if config.get('VpcConfig'):
-                                infra_findings.append(f"VPC Config: {len(config['VpcConfig'].get('SubnetIds', []))} subnets, {len(config['VpcConfig'].get('SecurityGroupIds', []))} security groups")
-                            
-                            service_name = func_name  # Update service name to actual function name
-                        except Exception as e:
-                            logger.warning("lambda_config_error", error=str(e))
-                
-                if not matching_functions:
-                    infra_findings.append(f"No Lambda functions found matching '{service_name}'")
-            
-            # Check EC2 instances
-            ec2 = session.client('ec2')
-            instances_response = ec2.describe_instances(
-                Filters=[{'Name': 'tag:Name', 'Values': [f'*{service_name}*']}]
-            )
-            
-            for reservation in instances_response.get('Reservations', []):
-                for instance in reservation.get('Instances', []):
-                    state = instance.get('State', {}).get('Name')
-                    instance_type = instance.get('InstanceType')
-                    infra_findings.append(f"EC2 Instance {instance.get('InstanceId')}: {instance_type}, State: {state}")
-            
-            agent_results.append({
-                "agent_type": "infrastructure",
-                "success": True,
-                "analysis": {"findings": infra_findings},
-                "evidence": infra_findings if infra_findings else ["No infrastructure issues detected"],
-                "duration_seconds": 2.5,
-                "providers_queried": ["aws"],
-                "error": None
-            })
-        except Exception as e:
-            logger.error("infrastructure_agent_error", error=str(e))
-            agent_results.append({
-                "agent_type": "infrastructure",
-                "success": False,
-                "analysis": {},
-                "evidence": [],
-                "duration_seconds": 0.5,
-                "providers_queried": ["aws"],
-                "error": str(e)
-            })
-        
-        # AGENT 2: Logs Agent - Get latest logs and use AI analysis
-        logger.info("running_logs_agent", service=service_name)
-        logs_findings = []
-        
-        try:
-            logs_client = session.client('logs')
-            
-            # Find log groups for the service
-            log_groups_response = logs_client.describe_log_groups(
-                logGroupNamePrefix=f'/aws/lambda/{service_name}'
-            )
-            
-            log_groups = log_groups_response.get('logGroups', [])
-            
-            if log_groups:
-                log_group_name = log_groups[0]['logGroupName']
-                logs_findings.append(f"Analyzing log group: {log_group_name}")
-                
-                # Get latest log streams (most recent first)
-                try:
-                    streams_response = logs_client.describe_log_streams(
-                        logGroupName=log_group_name,
-                        orderBy='LastEventTime',
-                        descending=True,
-                        limit=5  # Get 5 most recent streams
-                    )
-                    
-                    log_streams = streams_response.get('logStreams', [])
-                    
-                    if log_streams:
-                        # Collect latest log events from recent streams
-                        all_log_events = []
-                        
-                        for stream in log_streams[:3]:  # Check 3 most recent streams
-                            stream_name = stream['logStreamName']
-                            
-                            try:
-                                events_response = logs_client.get_log_events(
-                                    logGroupName=log_group_name,
-                                    logStreamName=stream_name,
-                                    limit=50,  # Get latest 50 events per stream
-                                    startFromHead=False  # Get most recent events
-                                )
-                                
-                                events = events_response.get('events', [])
-                                all_log_events.extend(events)
-                            except Exception as stream_error:
-                                logger.warning("log_stream_error", stream=stream_name, error=str(stream_error))
-                        
-                        if all_log_events:
-                            # Sort by timestamp (most recent first)
-                            all_log_events.sort(key=lambda x: x['timestamp'], reverse=True)
-                            
-                            # Take latest 100 events
-                            latest_events = all_log_events[:100]
-                            
-                            logs_findings.append(f"Retrieved {len(latest_events)} latest log events")
-                            
-                            # Prepare logs for AI analysis
-                            log_messages = []
-                            error_count = 0
-                            warning_count = 0
-                            
-                            for event in latest_events:
-                                message = event.get('message', '')
-                                log_messages.append(message)
-                                
-                                # Count errors and warnings
-                                message_lower = message.lower()
-                                if 'error' in message_lower or 'exception' in message_lower:
-                                    error_count += 1
-                                elif 'warn' in message_lower:
-                                    warning_count += 1
-                            
-                            logs_findings.append(f"Found {error_count} errors and {warning_count} warnings in latest logs")
-                            
-                            # Use AI to analyze logs if there are errors
-                            if error_count > 0:
-                                try:
-                                    from openai import AzureOpenAI
-                                    from app.core.config import get_settings
-                                    
-                                    settings = get_settings()
-                                    
-                                    ai_client = AzureOpenAI(
-                                        api_key=settings.llm.azure_openai_api_key,
-                                        api_version=settings.llm.azure_openai_api_version,
-                                        azure_endpoint=settings.llm.azure_openai_endpoint
-                                    )
-                                    
-                                    # Prepare log sample for AI (limit to avoid token limits)
-                                    log_sample = '\n'.join(log_messages[:50])
-                                    
-                                    ai_prompt = f"""Analyze these latest CloudWatch logs from Lambda function '{service_name}' and identify any issues:
-
-{log_sample}
-
-Provide:
-1. Key errors or exceptions found
-2. Patterns or recurring issues
-3. Potential root cause
-4. Severity assessment
-
-Be concise and focus on actionable insights."""
-                                    
-                                    ai_response = ai_client.chat.completions.create(
-                                        model=settings.llm.azure_openai_deployment_name,
-                                        messages=[
-                                            {"role": "system", "content": "You are an expert SRE analyzing application logs. Provide concise, actionable insights."},
-                                            {"role": "user", "content": ai_prompt}
-                                        ],
-                                        temperature=0.3,
-                                        max_tokens=500
-                                    )
-                                    
-                                    ai_analysis = ai_response.choices[0].message.content
-                                    logs_findings.append(f"AI Analysis: {ai_analysis}")
-                                    
-                                except Exception as ai_error:
-                                    logger.warning("ai_log_analysis_error", error=str(ai_error))
-                                    logs_findings.append("AI analysis unavailable")
-                            else:
-                                logs_findings.append("No errors found in latest logs")
-                        else:
-                            logs_findings.append("No log events found in recent streams")
-                    else:
-                        logs_findings.append("No log streams found")
-                        
-                except Exception as stream_error:
-                    logger.warning("log_streams_error", error=str(stream_error))
-                    logs_findings.append(f"Could not retrieve log streams: {str(stream_error)}")
-            else:
-                logs_findings.append(f"No log groups found for {service_name}")
-            
-            agent_results.append({
-                "agent_type": "logs",
-                "success": True,
-                "analysis": {"findings": logs_findings},
-                "evidence": logs_findings if logs_findings else ["No log data available"],
-                "duration_seconds": 3.2,
-                "providers_queried": ["aws"],
-                "error": None
-            })
-        except Exception as e:
-            logger.error("logs_agent_error", error=str(e))
-            agent_results.append({
-                "agent_type": "logs",
-                "success": False,
-                "analysis": {},
-                "evidence": [],
-                "duration_seconds": 0.5,
-                "providers_queried": ["aws"],
-                "error": str(e)
-            })
-        
-        # AGENT 3: Metrics Agent - Query CloudWatch Metrics
-        logger.info("running_metrics_agent", service=service_name)
-        metrics_findings = []
-        
-        try:
-            cloudwatch = session.client('cloudwatch')
-            
-            # Get Lambda metrics if it's a Lambda function
-            if "lambda" in description or "function" in description:
-                from datetime import timedelta
-                end_time = datetime.now()
-                start_time = end_time - timedelta(hours=1)
-                
-                # Get invocations
-                try:
-                    invocations = cloudwatch.get_metric_statistics(
-                        Namespace='AWS/Lambda',
-                        MetricName='Invocations',
-                        Dimensions=[{'Name': 'FunctionName', 'Value': service_name}],
-                        StartTime=start_time,
-                        EndTime=end_time,
-                        Period=300,  # 5 minutes
-                        Statistics=['Sum']
-                    )
-                    
-                    if invocations.get('Datapoints'):
-                        total_invocations = sum(dp['Sum'] for dp in invocations['Datapoints'])
-                        metrics_findings.append(f"Total invocations in last hour: {int(total_invocations)}")
-                except Exception as e:
-                    logger.warning("invocations_metric_error", error=str(e))
-                
-                # Get errors
-                try:
-                    errors = cloudwatch.get_metric_statistics(
-                        Namespace='AWS/Lambda',
-                        MetricName='Errors',
-                        Dimensions=[{'Name': 'FunctionName', 'Value': service_name}],
-                        StartTime=start_time,
-                        EndTime=end_time,
-                        Period=300,
-                        Statistics=['Sum']
-                    )
-                    
-                    if errors.get('Datapoints'):
-                        total_errors = sum(dp['Sum'] for dp in errors['Datapoints'])
-                        metrics_findings.append(f"Total errors in last hour: {int(total_errors)}")
-                        
-                        if total_errors > 0:
-                            error_rate = (total_errors / total_invocations * 100) if total_invocations > 0 else 0
-                            metrics_findings.append(f"Error rate: {error_rate:.2f}%")
-                except Exception as e:
-                    logger.warning("errors_metric_error", error=str(e))
-                
-                # Get duration
-                try:
-                    duration = cloudwatch.get_metric_statistics(
-                        Namespace='AWS/Lambda',
-                        MetricName='Duration',
-                        Dimensions=[{'Name': 'FunctionName', 'Value': service_name}],
-                        StartTime=start_time,
-                        EndTime=end_time,
-                        Period=300,
-                        Statistics=['Average', 'Maximum']
-                    )
-                    
-                    if duration.get('Datapoints'):
-                        avg_duration = sum(dp['Average'] for dp in duration['Datapoints']) / len(duration['Datapoints'])
-                        max_duration = max(dp['Maximum'] for dp in duration['Datapoints'])
-                        metrics_findings.append(f"Average duration: {avg_duration:.0f}ms, Max: {max_duration:.0f}ms")
-                except Exception as e:
-                    logger.warning("duration_metric_error", error=str(e))
-            
-            if not metrics_findings:
-                metrics_findings.append("No metrics data available")
-            
-            agent_results.append({
-                "agent_type": "metrics",
-                "success": True,
-                "analysis": {"findings": metrics_findings},
-                "evidence": metrics_findings,
-                "duration_seconds": 2.8,
-                "providers_queried": ["aws"],
-                "error": None
-            })
-        except Exception as e:
-            logger.error("metrics_agent_error", error=str(e))
-            agent_results.append({
-                "agent_type": "metrics",
-                "success": False,
-                "analysis": {},
-                "evidence": [],
-                "duration_seconds": 0.5,
-                "providers_queried": ["aws"],
-                "error": str(e)
-            })
-        
-        # AGENT 4: Security Agent - Check IAM and security
-        logger.info("running_security_agent", service=service_name)
-        security_findings = []
-        
-        try:
-            # Check Lambda IAM role if it's a Lambda function
-            if "lambda" in description or "function" in description:
-                lambda_client = session.client('lambda')
-                
-                try:
-                    config = lambda_client.get_function_configuration(FunctionName=service_name)
-                    role_arn = config.get('Role')
-                    
-                    if role_arn:
-                        security_findings.append(f"IAM Role: {role_arn.split('/')[-1]}")
-                        
-                        # Get role policies
-                        iam = session.client('iam')
-                        role_name = role_arn.split('/')[-1]
-                        
-                        try:
-                            attached_policies = iam.list_attached_role_policies(RoleName=role_name)
-                            if attached_policies.get('AttachedPolicies'):
-                                security_findings.append(f"Attached policies: {len(attached_policies['AttachedPolicies'])}")
-                                for policy in attached_policies['AttachedPolicies'][:3]:
-                                    security_findings.append(f"  - {policy['PolicyName']}")
-                        except Exception as e:
-                            logger.warning("iam_policies_error", error=str(e))
-                except Exception as e:
-                    logger.warning("lambda_role_error", error=str(e))
-            
-            if not security_findings:
-                security_findings.append("No security issues detected")
-            
-            agent_results.append({
-                "agent_type": "security",
-                "success": True,
-                "analysis": {"findings": security_findings},
-                "evidence": security_findings,
-                "duration_seconds": 1.9,
-                "providers_queried": ["aws"],
-                "error": None
-            })
-        except Exception as e:
-            logger.error("security_agent_error", error=str(e))
-            agent_results.append({
-                "agent_type": "security",
-                "success": False,
-                "analysis": {},
-                "evidence": [],
-                "duration_seconds": 0.5,
-                "providers_queried": ["aws"],
-                "error": str(e)
-            })
-        
-        # AGENT 5: Code Agent - Check recent deployments
-        logger.info("running_code_agent", service=service_name)
-        code_findings = []
-        
-        try:
-            # Check Lambda deployment history
-            if "lambda" in description or "function" in description:
-                lambda_client = session.client('lambda')
-                
-                try:
-                    # List versions
-                    versions = lambda_client.list_versions_by_function(FunctionName=service_name)
-                    
-                    if versions.get('Versions'):
-                        code_findings.append(f"Function has {len(versions['Versions'])} versions")
-                        
-                        # Get latest version info
-                        latest = versions['Versions'][-1]
-                        code_findings.append(f"Latest version: {latest.get('Version')}")
-                        code_findings.append(f"Last modified: {latest.get('LastModified')}")
-                        code_findings.append(f"Code size: {latest.get('CodeSize', 0) / 1024:.1f} KB")
-                except Exception as e:
-                    logger.warning("lambda_versions_error", error=str(e))
-            
-            if not code_findings:
-                code_findings.append("No recent code changes detected")
-            
-            agent_results.append({
-                "agent_type": "code",
-                "success": True,
-                "analysis": {"findings": code_findings},
-                "evidence": code_findings,
-                "duration_seconds": 2.1,
-                "providers_queried": ["aws"],
-                "error": None
-            })
-        except Exception as e:
-            logger.error("code_agent_error", error=str(e))
-            agent_results.append({
-                "agent_type": "code",
-                "success": False,
-                "analysis": {},
-                "evidence": [],
-                "duration_seconds": 0.5,
-                "providers_queried": ["aws"],
-                "error": str(e)
-            })
-        
-        # Generate RCA and Resolution using AI
-        rca = None
-        resolution = None
-        
-        try:
-            from openai import AzureOpenAI
-            from app.core.config import get_settings
-            
-            settings = get_settings()
-            
-            ai_client = AzureOpenAI(
-                api_key=settings.llm.azure_openai_api_key,
-                api_version=settings.llm.azure_openai_api_version,
-                azure_endpoint=settings.llm.azure_openai_endpoint
-            )
-            
-            # Compile all agent findings
-            all_findings = []
-            for agent in agent_results:
-                if agent.get('success') and agent.get('evidence'):
-                    all_findings.append(f"\n{agent['agent_type'].upper()} Agent Findings:")
-                    for evidence in agent['evidence']:
-                        all_findings.append(f"- {evidence}")
-            
-            findings_text = '\n'.join(all_findings)
-            
-            # Generate RCA
-            rca_prompt = f"""Based on the following investigation findings for service '{service_name}', provide a Root Cause Analysis:
-
-{findings_text}
-
-Provide a structured RCA with:
-1. Root Cause (1-2 sentences)
-2. Contributing Factors (bullet points)
-3. Impact Assessment
-4. Confidence Level (High/Medium/Low)
-
-Be concise and actionable."""
-            
-            rca_response = ai_client.chat.completions.create(
-                model=settings.llm.azure_openai_deployment_name,
-                messages=[
-                    {"role": "system", "content": "You are an expert SRE providing root cause analysis. Be concise and actionable."},
-                    {"role": "user", "content": rca_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=800
-            )
-            
-            rca_text = rca_response.choices[0].message.content
-            
-            # Generate Resolution
-            resolution_prompt = f"""Based on this Root Cause Analysis:
-
-{rca_text}
-
-And these investigation findings:
-{findings_text}
-
-Provide a detailed resolution plan with:
-1. Immediate Actions (to stop the bleeding)
-2. Short-term Fix (to resolve the issue)
-3. Long-term Improvements (to prevent recurrence)
-4. Monitoring Recommendations
-
-Be specific and actionable."""
-            
-            resolution_response = ai_client.chat.completions.create(
-                model=settings.llm.azure_openai_deployment_name,
-                messages=[
-                    {"role": "system", "content": "You are an expert SRE providing resolution plans. Be specific and actionable."},
-                    {"role": "user", "content": resolution_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=1000
-            )
-            
-            resolution_text = resolution_response.choices[0].message.content
-            
-            # Structure RCA
-            rca = {
-                "root_cause": rca_text,
-                "confidence": "high",
-                "supporting_evidence": [e for agent in agent_results if agent.get('success') for e in agent.get('evidence', [])[:3]],
-                "affected_resources": [service_name],
-                "contributing_factors": [],
-                "incident_timeline": []
-            }
-            
-            # Structure Resolution
-            resolution = {
-                "recommended_fix": resolution_text,
-                "fix_steps": [],
-                "commands": [],
-                "estimated_impact": "Low - Can be applied during business hours",
-                "requires_human_approval": True,
-                "snow_work_note": f"RCA: {rca_text}\n\nResolution: {resolution_text}"
-            }
-            
-            logger.info("rca_and_resolution_generated", investigation_id=investigation.id)
-            
-        except Exception as ai_error:
-            logger.error("rca_generation_error", error=str(ai_error))
-            # Continue without RCA/resolution
-        
-        # Update investigation with agent results, RCA, and resolution
-        await crud.update_investigation(
-            db=db,
+        # Add background task to run investigation
+        background_tasks.add_task(
+            run_investigation_background,
             investigation_id=investigation.id,
-            status="rca_complete",
-            service_name=service_name,
-            agent_results=agent_results,
-            rca=rca,
-            resolution=resolution,
-            completed_at=datetime.utcnow()
+            tenant_id=tenant_id,
+            incident=incident
         )
-        
-        logger.info("investigation_completed", investigation_id=investigation.id, agents_run=len(agent_results))
         
         return {
             "investigation_id": investigation.id,
-            "status": "rca_complete",
-            "service_name": service_name,
-            "agent_results": agent_results
+            "status": "investigating",
+            "service_name": incident.cmdb_ci or "unknown-service",
         }
         
     except HTTPException:
@@ -1204,6 +635,351 @@ Be specific and actionable."""
         import traceback
         logger.error("investigation_traceback", traceback=traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def run_investigation_background(
+    investigation_id: str,
+    tenant_id: str,
+    incident: any
+):
+    """Run investigation in background with comprehensive error handling."""
+    logger.info("background_investigation_starting", investigation_id=investigation_id)
+    
+    try:
+        from app.db.base import get_db_session
+        
+        async for db in get_db_session():
+            try:
+                # Get ServiceNow connector to fetch full incident details
+                connector = get_servicenow_connector()
+                full_incident = None
+                
+                try:
+                    from uuid import UUID
+                    tenant_uuid = UUID(tenant_id)
+                    full_incident = await connector.get_incident(tenant_uuid, incident.number)
+                except Exception as e:
+                    logger.warning("servicenow_fetch_failed", 
+                                  investigation_id=investigation_id,
+                                  error=str(e))
+                
+                # Extract service name from incident
+                service_name = incident.cmdb_ci or "unknown-service"
+                
+                # Parse incident description to identify affected resource
+                description = (incident.description or incident.short_description or "").lower()
+                
+                # Get AWS credentials
+                aws_integrations = await crud.get_integrations(db, tenant_id, "aws")
+                if not aws_integrations:
+                    logger.error("aws_integration_not_configured", investigation_id=investigation_id)
+                    await crud.update_investigation(
+                        db=db,
+                        investigation_id=investigation_id,
+                        status="failed"
+                    )
+                    return
+                
+                aws_integration = aws_integrations[0]
+                aws_config = crud.decrypt_integration_config(aws_integration)
+                
+                import boto3
+                
+                # Create AWS session
+                session = boto3.Session(
+                    aws_access_key_id=aws_config.get("access_key_id"),
+                    aws_secret_access_key=aws_config.get("secret_access_key"),
+                    region_name=aws_config.get("region", "us-east-1")
+                )
+                
+                # Execute all agents in parallel using the ParallelAgentExecutor
+                from app.agents.parallel_executor import ParallelAgentExecutor
+                
+                logger.info("starting_parallel_agent_execution", investigation_id=investigation_id)
+                
+                executor = ParallelAgentExecutor(
+                    session=session,
+                    service_name=service_name,
+                    description=description,
+                    investigation_id=investigation_id,
+                    tenant_id=tenant_id
+                )
+                
+                # Run all agents in parallel
+                agent_results = await executor.execute_all_agents()
+                
+                logger.info("parallel_agent_execution_complete", 
+                           investigation_id=investigation_id,
+                           successful_agents=sum(1 for r in agent_results if r.get('success')))
+                
+                # Generate RCA and Resolution using AI
+                rca = None
+                resolution = None
+                
+                try:
+                    from openai import AzureOpenAI
+                    from app.core.config import get_settings
+                    
+                    settings = get_settings()
+                    
+                    ai_client = AzureOpenAI(
+                        api_key=settings.llm.azure_openai_api_key,
+                        api_version=settings.llm.azure_openai_api_version,
+                        azure_endpoint=settings.llm.azure_openai_endpoint
+                    )
+                    
+                    # Compile all agent findings
+                    all_findings = []
+                    for agent in agent_results:
+                        if agent.get('success') and agent.get('evidence'):
+                            all_findings.append(f"\n{agent['agent_type'].upper()} Agent Findings:")
+                            for evidence in agent['evidence']:
+                                all_findings.append(f"- {evidence}")
+                    
+                    findings_text = '\n'.join(all_findings)
+                    
+                    # Search for relevant knowledge base entries
+                    relevant_knowledge = []
+                    knowledge_used_ids = []
+                    try:
+                        search_query = f"{service_name} {description}"
+                        knowledge_results = await crud.search_relevant_knowledge(
+                            db=db,
+                            tenant_id=tenant_id,
+                            service_name=service_name,
+                            search_text=description,
+                            limit=3
+                        )
+                        
+                        if knowledge_results:
+                            relevant_knowledge = [
+                                f"\n### Past Knowledge: {kb.title}\n{kb.root_cause}\n{kb.resolution}"
+                                for kb in knowledge_results
+                            ]
+                            knowledge_used_ids = [kb.id for kb in knowledge_results]
+                            logger.info("relevant_knowledge_found", 
+                                       investigation_id=investigation_id,
+                                       count=len(knowledge_results))
+                    except Exception as kb_error:
+                        logger.warning("knowledge_search_failed", error=str(kb_error))
+                    
+                    knowledge_context = '\n'.join(relevant_knowledge) if relevant_knowledge else ""
+                    
+                    # Generate RCA
+                    rca_prompt = f"""Based on the following investigation findings for service '{service_name}', provide a Root Cause Analysis:
+
+{findings_text}
+
+{knowledge_context}
+
+Provide a structured RCA with:
+1. Root Cause (1-2 sentences)
+2. Contributing Factors (bullet points)
+3. Impact Assessment
+4. Confidence Level (High/Medium/Low)
+
+Be concise and actionable."""
+                    
+                    rca_response = ai_client.chat.completions.create(
+                        model=settings.llm.azure_openai_deployment_name,
+                        messages=[
+                            {"role": "system", "content": "You are an expert SRE providing root cause analysis. Be concise and actionable."},
+                            {"role": "user", "content": rca_prompt}
+                        ],
+                        temperature=0.3,
+                        max_tokens=800
+                    )
+                    
+                    rca_text = rca_response.choices[0].message.content
+                    
+                    # Generate Resolution with structured format
+                    resolution_prompt = f"""Based on this Root Cause Analysis:
+
+{rca_text}
+
+And these investigation findings:
+{findings_text}
+
+{knowledge_context}
+
+Provide a detailed resolution plan with clear, numbered steps:
+
+IMMEDIATE ACTIONS (to stop the bleeding):
+1. [First immediate action]
+2. [Second immediate action]
+3. [Third immediate action]
+
+SHORT-TERM FIX (to resolve the issue):
+1. [First fix step]
+2. [Second fix step]
+3. [Third fix step]
+
+LONG-TERM IMPROVEMENTS (to prevent recurrence):
+1. [First improvement]
+2. [Second improvement]
+3. [Third improvement]
+
+MONITORING RECOMMENDATIONS:
+1. [First monitoring recommendation]
+2. [Second monitoring recommendation]
+
+Be specific, actionable, and use numbered lists for each section."""
+                    
+                    resolution_response = ai_client.chat.completions.create(
+                        model=settings.llm.azure_openai_deployment_name,
+                        messages=[
+                            {"role": "system", "content": "You are an expert SRE providing resolution plans. Be specific and actionable."},
+                            {"role": "user", "content": resolution_prompt}
+                        ],
+                        temperature=0.3,
+                        max_tokens=1000
+                    )
+                    
+                    resolution_text = resolution_response.choices[0].message.content
+                    
+                    # Parse resolution text to extract fix steps
+                    fix_steps = []
+                    try:
+                        # Look for numbered steps in the resolution text
+                        import re
+                        
+                        # Try to find sections with numbered steps
+                        # Pattern 1: "1. Step description"
+                        numbered_steps = re.findall(r'^\s*\d+\.\s*\*\*(.+?)\*\*:?\s*$', resolution_text, re.MULTILINE)
+                        if numbered_steps:
+                            fix_steps = numbered_steps[:10]  # Limit to 10 steps
+                        else:
+                            # Pattern 2: Look for bullet points with actions
+                            bullet_steps = re.findall(r'^\s*[-•]\s*(.+?)$', resolution_text, re.MULTILINE)
+                            if bullet_steps:
+                                # Filter for action-oriented steps (contain verbs like Update, Check, Verify, etc.)
+                                action_verbs = ['update', 'check', 'verify', 'review', 'implement', 'deploy', 'test', 'configure', 'enable', 'set up', 'create', 'add', 'remove', 'fix', 'correct', 'investigate', 'monitor', 'ensure', 'disable', 'notify', 'capture', 'export']
+                                fix_steps = [step.strip() for step in bullet_steps if any(verb in step.lower() for verb in action_verbs)][:10]
+                            else:
+                                # Pattern 3: Look for sections like "Immediate Actions", "Short-term Fix", etc.
+                                sections = re.split(r'#{1,4}\s+\d+\.\s+(.+?)(?:\n|$)', resolution_text)
+                                if len(sections) > 1:
+                                    # Extract first few section titles as steps
+                                    fix_steps = [s.strip() for s in sections[1::2] if s.strip()][:5]
+                        
+                        # If still no steps found, create generic steps from the resolution text
+                        if not fix_steps:
+                            fix_steps = [
+                                "Review the detailed resolution plan below",
+                                "Implement immediate actions to stop the issue",
+                                "Apply short-term fixes to resolve the root cause",
+                                "Implement long-term improvements to prevent recurrence",
+                                "Set up monitoring and alerts"
+                            ]
+                    except Exception as parse_error:
+                        logger.warning("failed_to_parse_fix_steps", error=str(parse_error))
+                        fix_steps = [
+                            "Review the detailed resolution plan",
+                            "Implement recommended fixes",
+                            "Verify the solution",
+                            "Monitor for recurrence"
+                        ]
+                    
+                    # Structure RCA
+                    rca = {
+                        "root_cause": rca_text,
+                        "confidence": 0.8,  # High confidence as number (0.0-1.0)
+                        "supporting_evidence": [e for agent in agent_results if agent.get('success') for e in agent.get('evidence', [])[:3]],
+                        "affected_resources": [service_name],
+                        "contributing_factors": [],
+                        "incident_timeline": []
+                    }
+                    
+                    # Structure Resolution
+                    resolution = {
+                        "recommended_fix": resolution_text,
+                        "fix_steps": fix_steps,
+                        "commands": [],
+                        "estimated_impact": "Low - Can be applied during business hours",
+                        "requires_human_approval": True,
+                        "snow_work_note": f"RCA: {rca_text}\n\nResolution: {resolution_text}"
+                    }
+                    
+                    logger.info("rca_and_resolution_generated", investigation_id=investigation_id)
+                    
+                    # Track knowledge usage
+                    if knowledge_used_ids:
+                        try:
+                            for kb_id in knowledge_used_ids:
+                                await crud.track_knowledge_usage(
+                                    db=db,
+                                    knowledge_id=kb_id,
+                                    investigation_id=investigation_id,
+                                    usage_type="rca_generation"
+                                )
+                            logger.info("knowledge_usage_tracked", 
+                                       investigation_id=investigation_id,
+                                       knowledge_count=len(knowledge_used_ids))
+                        except Exception as usage_error:
+                            logger.warning("knowledge_usage_tracking_failed", error=str(usage_error))
+                    
+                except Exception as ai_error:
+                    logger.error("rca_generation_error", error=str(ai_error))
+                    # Continue without RCA/resolution
+                
+                # Update investigation with final results
+                await crud.update_investigation(
+                    db=db,
+                    investigation_id=investigation_id,
+                    status="rca_complete",
+                    service_name=service_name,
+                    agent_results=agent_results,
+                    rca=rca,
+                    resolution=resolution,
+                    completed_at=datetime.now(timezone.utc)
+                )
+                
+                logger.info("investigation_completed", investigation_id=investigation_id, agents_run=len(agent_results))
+                break
+            
+            except Exception as inner_error:
+                logger.error("investigation_execution_error", 
+                            investigation_id=investigation_id,
+                            error=str(inner_error))
+                import traceback
+                logger.error("investigation_execution_traceback", 
+                            investigation_id=investigation_id,
+                            traceback=traceback.format_exc())
+                
+                # Update investigation status to failed
+                try:
+                    await crud.update_investigation(
+                        db=db,
+                        investigation_id=investigation_id,
+                        status="failed"
+                    )
+                except Exception as update_error:
+                    logger.error("failed_to_update_investigation_status", 
+                                investigation_id=investigation_id,
+                                error=str(update_error))
+                break
+            
+    except Exception as e:
+        logger.error("background_investigation_error", investigation_id=investigation_id, error=str(e))
+        import traceback
+        logger.error("background_investigation_traceback", 
+                    investigation_id=investigation_id,
+                    traceback=traceback.format_exc())
+        
+        # Try to update investigation status to failed
+        try:
+            from app.db.base import get_db_session
+            async for db in get_db_session():
+                await crud.update_investigation(
+                    db=db,
+                    investigation_id=investigation_id,
+                    status="failed"
+                )
+                break
+        except Exception as final_error:
+            logger.error("final_status_update_failed", 
+                        investigation_id=investigation_id,
+                        error=str(final_error))
 
 
 @router.post("/chat/threads")
@@ -2116,7 +1892,9 @@ async def get_investigations_real(
 
 @router.get("/investigations/{investigation_id}")
 async def get_investigation_real(investigation_id: str, db: AsyncSession = Depends(get_db)):
-    """Get a single investigation by ID."""
+    """Get a single investigation by ID with no-cache headers for live updates."""
+    from fastapi import Response
+    
     try:
         logger.info("fetching_investigation", investigation_id=investigation_id)
         
@@ -2125,7 +1903,7 @@ async def get_investigation_real(investigation_id: str, db: AsyncSession = Depen
         if not investigation:
             raise HTTPException(status_code=404, detail="Investigation not found")
         
-        return {
+        response_data = {
             "id": investigation.id,
             "incident_number": investigation.incident_number,
             "service_name": investigation.service_name,
@@ -2139,8 +1917,91 @@ async def get_investigation_real(investigation_id: str, db: AsyncSession = Depen
             "completed_at": investigation.completed_at.isoformat() if investigation.completed_at else None,
         }
         
+        # Log agent results count for debugging
+        logger.info("investigation_fetched", 
+                   investigation_id=investigation_id,
+                   status=investigation.status,
+                   agent_results_count=len(investigation.agent_results or []))
+        
+        return response_data
+        
     except HTTPException:
         raise
     except Exception as e:
         logger.error("get_investigation_error", investigation_id=investigation_id, error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/investigations/{investigation_id}")
+async def delete_investigation_real(investigation_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a single investigation by ID."""
+    try:
+        logger.info("deleting_investigation", investigation_id=investigation_id)
+        
+        investigation = await crud.get_investigation(db, investigation_id)
+        
+        if not investigation:
+            raise HTTPException(status_code=404, detail="Investigation not found")
+        
+        # Delete the investigation
+        await db.delete(investigation)
+        await db.commit()
+        
+        logger.info("investigation_deleted", investigation_id=investigation_id)
+        
+        return {
+            "success": True,
+            "message": "Investigation deleted successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("delete_investigation_error", investigation_id=investigation_id, error=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class BulkDeleteRequest(BaseModel):
+    investigation_ids: List[str]
+
+
+@router.post("/investigations/bulk-delete")
+async def bulk_delete_investigations_real(request: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
+    """Delete multiple investigations in a single request."""
+    try:
+        logger.info("bulk_deleting_investigations", count=len(request.investigation_ids))
+        
+        deleted_count = 0
+        failed_ids = []
+        
+        for investigation_id in request.investigation_ids:
+            try:
+                investigation = await crud.get_investigation(db, investigation_id)
+                
+                if investigation:
+                    await db.delete(investigation)
+                    deleted_count += 1
+                else:
+                    failed_ids.append(investigation_id)
+                    
+            except Exception as e:
+                logger.error("bulk_delete_item_failed", investigation_id=investigation_id, error=str(e))
+                failed_ids.append(investigation_id)
+        
+        await db.commit()
+        
+        logger.info("bulk_delete_complete", deleted=deleted_count, failed=len(failed_ids))
+        
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "failed_count": len(failed_ids),
+            "failed_ids": failed_ids,
+            "message": f"Successfully deleted {deleted_count} investigation(s)"
+        }
+        
+    except Exception as e:
+        logger.error("bulk_delete_error", error=str(e))
+        await db.rollback()
         raise HTTPException(status_code=500, detail=str(e))

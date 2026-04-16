@@ -65,9 +65,9 @@ export function TopologyPage() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-background">
       {/* Header */}
-      <div className="border-b bg-card p-4">
+      <div className="border-b bg-white p-4">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Topology</h1>

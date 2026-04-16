@@ -543,3 +543,300 @@ async def get_chat_messages(db: AsyncSession, thread_id: str) -> List[ChatMessag
         .order_by(ChatMessage.created_at.asc())
     )
     return list(result.scalars().all())
+
+
+# Knowledge Base CRUD
+async def create_knowledge(
+    db: AsyncSession,
+    tenant_id: str,
+    title: str,
+    knowledge_type: str,
+    description: Optional[str] = None,
+    content: Optional[str] = None,
+    external_url: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    service_name: Optional[str] = None,
+    incident_number: Optional[str] = None,
+    investigation_id: Optional[str] = None,
+    created_by: Optional[str] = None
+):
+    """Create knowledge base entry.
+    
+    Args:
+        db: Database session
+        tenant_id: Tenant ID
+        title: Knowledge title
+        knowledge_type: Type (runbook, architecture, code_snippet, investigation, external_link)
+        description: Optional description
+        content: Optional markdown content
+        external_url: Optional external URL
+        tags: Optional list of tags
+        service_name: Optional service name
+        incident_number: Optional incident number
+        investigation_id: Optional investigation ID
+        created_by: Optional creator name
+        
+    Returns:
+        KnowledgeBase: Created knowledge entry
+    """
+    from app.db.models import KnowledgeBase
+    
+    knowledge = KnowledgeBase(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        title=title,
+        type=knowledge_type,
+        description=description,
+        content=content,
+        external_url=external_url,
+        tags=tags or [],
+        service_name=service_name,
+        incident_number=incident_number,
+        investigation_id=investigation_id,
+        created_by=created_by,
+    )
+    
+    db.add(knowledge)
+    await db.commit()
+    await db.refresh(knowledge)
+    
+    return knowledge
+
+
+async def get_knowledge_list(
+    db: AsyncSession,
+    tenant_id: str,
+    knowledge_type: Optional[str] = None,
+    service_name: Optional[str] = None,
+    tags: Optional[List[str]] = None
+):
+    """Get knowledge base entries.
+    
+    Args:
+        db: Database session
+        tenant_id: Tenant ID
+        knowledge_type: Optional filter by type
+        service_name: Optional filter by service
+        tags: Optional filter by tags
+        
+    Returns:
+        List[KnowledgeBase]: List of knowledge entries
+    """
+    from app.db.models import KnowledgeBase
+    
+    query = select(KnowledgeBase).where(KnowledgeBase.tenant_id == tenant_id)
+    
+    if knowledge_type:
+        query = query.where(KnowledgeBase.type == knowledge_type)
+    
+    if service_name:
+        query = query.where(KnowledgeBase.service_name == service_name)
+    
+    # Note: SQLite JSON filtering is limited, so we'll filter tags in Python
+    result = await db.execute(query.order_by(KnowledgeBase.created_at.desc()))
+    knowledge_list = list(result.scalars().all())
+    
+    # Filter by tags if provided
+    if tags:
+        knowledge_list = [
+            k for k in knowledge_list
+            if k.tags and any(tag in k.tags for tag in tags)
+        ]
+    
+    return knowledge_list
+
+
+async def get_knowledge(db: AsyncSession, knowledge_id: str):
+    """Get knowledge by ID.
+    
+    Args:
+        db: Database session
+        knowledge_id: Knowledge ID
+        
+    Returns:
+        Optional[KnowledgeBase]: Knowledge entry or None
+    """
+    from app.db.models import KnowledgeBase
+    
+    result = await db.execute(select(KnowledgeBase).where(KnowledgeBase.id == knowledge_id))
+    return result.scalar_one_or_none()
+
+
+async def update_knowledge(
+    db: AsyncSession,
+    knowledge_id: str,
+    **kwargs
+):
+    """Update knowledge entry.
+    
+    Args:
+        db: Database session
+        knowledge_id: Knowledge ID
+        **kwargs: Fields to update
+        
+    Returns:
+        Optional[KnowledgeBase]: Updated knowledge or None
+    """
+    knowledge = await get_knowledge(db, knowledge_id)
+    
+    if not knowledge:
+        return None
+    
+    for key, value in kwargs.items():
+        if hasattr(knowledge, key) and key != 'id':
+            setattr(knowledge, key, value)
+    
+    knowledge.updated_at = datetime.utcnow()
+    
+    await db.commit()
+    await db.refresh(knowledge)
+    
+    return knowledge
+
+
+async def delete_knowledge(db: AsyncSession, knowledge_id: str) -> bool:
+    """Delete knowledge entry.
+    
+    Args:
+        db: Database session
+        knowledge_id: Knowledge ID
+        
+    Returns:
+        bool: True if deleted, False if not found
+    """
+    knowledge = await get_knowledge(db, knowledge_id)
+    
+    if not knowledge:
+        return False
+    
+    await db.delete(knowledge)
+    await db.commit()
+    
+    return True
+
+
+async def search_relevant_knowledge(
+    db: AsyncSession,
+    tenant_id: str,
+    service_name: Optional[str] = None,
+    incident_number: Optional[str] = None,
+    search_text: Optional[str] = None,
+    limit: int = 5
+):
+    """Search for relevant knowledge based on service, incident, or text.
+    
+    Args:
+        db: Database session
+        tenant_id: Tenant ID
+        service_name: Optional service name
+        incident_number: Optional incident number
+        search_text: Optional search text
+        limit: Maximum results
+        
+    Returns:
+        List[KnowledgeBase]: Relevant knowledge entries
+    """
+    from app.db.models import KnowledgeBase
+    
+    query = select(KnowledgeBase).where(KnowledgeBase.tenant_id == tenant_id)
+    
+    # Prioritize exact service match
+    if service_name:
+        query = query.where(KnowledgeBase.service_name == service_name)
+    
+    result = await db.execute(query.order_by(KnowledgeBase.usage_count.desc()).limit(limit * 2))
+    knowledge_list = list(result.scalars().all())
+    
+    # If search text provided, filter by title/description/content
+    if search_text and knowledge_list:
+        search_lower = search_text.lower()
+        scored_results = []
+        
+        for k in knowledge_list:
+            score = 0
+            if k.title and search_lower in k.title.lower():
+                score += 3
+            if k.description and search_lower in k.description.lower():
+                score += 2
+            if k.content and search_lower in k.content.lower():
+                score += 1
+            
+            if score > 0:
+                scored_results.append((score, k))
+        
+        # Sort by score and return top results
+        scored_results.sort(key=lambda x: x[0], reverse=True)
+        return [k for _, k in scored_results[:limit]]
+    
+    return knowledge_list[:limit]
+
+
+async def track_knowledge_usage(
+    db: AsyncSession,
+    knowledge_id: str,
+    investigation_id: str,
+    relevance_score: Optional[float] = None,
+    used_in_rca: bool = False,
+    used_in_resolution: bool = False
+):
+    """Track knowledge usage in investigation.
+    
+    Args:
+        db: Database session
+        knowledge_id: Knowledge ID
+        investigation_id: Investigation ID
+        relevance_score: Optional relevance score (0-100)
+        used_in_rca: Whether used in RCA
+        used_in_resolution: Whether used in resolution
+        
+    Returns:
+        KnowledgeUsage: Created usage record
+    """
+    from app.db.models import KnowledgeUsage
+    
+    usage = KnowledgeUsage(
+        id=str(uuid.uuid4()),
+        knowledge_id=knowledge_id,
+        investigation_id=investigation_id,
+        relevance_score=relevance_score,
+        used_in_rca=used_in_rca,
+        used_in_resolution=used_in_resolution,
+    )
+    
+    db.add(usage)
+    
+    # Update knowledge usage count and last_used_at
+    knowledge = await get_knowledge(db, knowledge_id)
+    if knowledge:
+        knowledge.usage_count += 1
+        knowledge.last_used_at = datetime.utcnow()
+    
+    await db.commit()
+    await db.refresh(usage)
+    
+    return usage
+
+
+async def get_knowledge_usage_for_investigation(
+    db: AsyncSession,
+    investigation_id: str
+):
+    """Get knowledge used in investigation.
+    
+    Args:
+        db: Database session
+        investigation_id: Investigation ID
+        
+    Returns:
+        List[tuple]: List of (KnowledgeUsage, KnowledgeBase) tuples
+    """
+    from app.db.models import KnowledgeUsage, KnowledgeBase
+    
+    result = await db.execute(
+        select(KnowledgeUsage, KnowledgeBase)
+        .join(KnowledgeBase, KnowledgeUsage.knowledge_id == KnowledgeBase.id)
+        .where(KnowledgeUsage.investigation_id == investigation_id)
+        .order_by(KnowledgeUsage.relevance_score.desc())
+    )
+    
+    return list(result.all())

@@ -2,6 +2,7 @@
  * Investigations feature hooks using TanStack Query
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useTenant } from '@/stores/authStore';
 import { InvestigationStatus } from '@/types';
 import {
@@ -9,6 +10,10 @@ import {
   getInvestigation,
   approveResolution,
   exportPostMortem,
+  cancelInvestigation,
+  startServiceInvestigation,
+  deleteInvestigation,
+  bulkDeleteInvestigations,
 } from './api';
 import { InvestigationFilters } from './types';
 
@@ -28,23 +33,16 @@ export function useInvestigations(filters?: InvestigationFilters) {
 
 /**
  * Hook to fetch a single investigation by ID
- * Polls every 1 second if status is active for live updates
+ * Polls every 2 seconds until manually stopped
  */
 export function useInvestigation(id: string | null) {
   return useQuery({
     queryKey: ['investigation', id],
     queryFn: () => getInvestigation(id!),
     enabled: !!id,
-    refetchInterval: (data) => {
-      // Poll every 1 second if investigation is active (for live agent updates)
-      if (
-        data?.status === InvestigationStatus.STARTED ||
-        data?.status === InvestigationStatus.INVESTIGATING
-      ) {
-        return 1000; // 1 second for live updates
-      }
-      return false;
-    },
+    refetchInterval: 2000, // Always poll every 2 seconds - simple and reliable
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -89,6 +87,84 @@ export function useExportPostMortem(investigationId: string) {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+    },
+  });
+}
+
+
+/**
+ * Hook to cancel investigation
+ */
+export function useCancelInvestigation(investigationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => cancelInvestigation(investigationId),
+    onSuccess: () => {
+      // Invalidate investigation data
+      queryClient.invalidateQueries({
+        queryKey: ['investigation', investigationId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['investigations'],
+      });
+    },
+  });
+}
+
+/**
+ * Hook to start investigation for a service
+ */
+export function useStartServiceInvestigation() {
+  const tenant = useTenant();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (serviceName: string) =>
+      startServiceInvestigation(tenant!.id, serviceName),
+    onSuccess: (data) => {
+      // Invalidate investigations list
+      queryClient.invalidateQueries({
+        queryKey: ['investigations'],
+      });
+
+      // Navigate to investigation page
+      navigate(`/investigations/${data.investigation_id}`);
+    },
+  });
+}
+
+/**
+ * Hook to delete a single investigation
+ */
+export function useDeleteInvestigation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (investigationId: string) => deleteInvestigation(investigationId),
+    onSuccess: () => {
+      // Invalidate investigations list
+      queryClient.invalidateQueries({
+        queryKey: ['investigations'],
+      });
+    },
+  });
+}
+
+/**
+ * Hook to delete multiple investigations
+ */
+export function useBulkDeleteInvestigations() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (investigationIds: string[]) => bulkDeleteInvestigations(investigationIds),
+    onSuccess: () => {
+      // Invalidate investigations list
+      queryClient.invalidateQueries({
+        queryKey: ['investigations'],
+      });
     },
   });
 }

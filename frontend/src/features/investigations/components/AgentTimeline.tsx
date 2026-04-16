@@ -10,9 +10,10 @@ import { statusColors } from '@/lib/colors';
 interface AgentTimelineProps {
   agents: AgentResult[];
   elapsedSeconds: number;
+  isCompleted?: boolean;
 }
 
-export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
+export function AgentTimeline({ agents, elapsedSeconds, isCompleted = false }: AgentTimelineProps) {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
 
   const toggleAgent = (agentType: string) => {
@@ -72,13 +73,15 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
 
   return (
     <div className="space-y-4">
-      {/* Overall elapsed time */}
-      <div className="p-3 rounded-lg bg-muted">
-        <p className="text-sm font-medium">Total Duration</p>
-        <p className="text-2xl font-semibold mt-1">
-          {formatDuration(elapsedSeconds)}
-        </p>
-      </div>
+      {/* Overall elapsed time - only show when completed */}
+      {isCompleted && (
+        <div className="p-3 rounded-lg bg-muted">
+          <p className="text-sm font-medium">Total Duration</p>
+          <p className="text-2xl font-semibold mt-1">
+            {formatDuration(elapsedSeconds)}
+          </p>
+        </div>
+      )}
 
       {/* Agent timeline */}
       <div className="space-y-3">
@@ -89,11 +92,6 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
 
           return (
             <div key={agent.agent_type} className="relative">
-              {/* Timeline line */}
-              {index < displayAgents.length - 1 && (
-                <div className="absolute left-[18px] top-10 bottom-0 w-px bg-border" />
-              )}
-
               {/* Agent node */}
               <button
                 onClick={() => hasCompleted && toggleAgent(agent.agent_type)}
@@ -148,37 +146,77 @@ export function AgentTimeline({ agents, elapsedSeconds }: AgentTimelineProps) {
 
               {/* Expanded details */}
               {isExpanded && hasCompleted && (
-                <div className="ml-11 mt-2 p-3 rounded-lg bg-muted space-y-3">
-                  {/* Providers queried */}
-                  {agent.providers_queried.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">
-                        Providers Queried
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {agent.providers_queried.map((provider) => (
-                          <span
-                            key={provider}
-                            className="px-2 py-0.5 rounded bg-background text-xs"
-                          >
-                            {provider}
-                          </span>
-                        ))}
+                <div className="mt-2 space-y-2 px-3">
+                  {/* Providers and Duration */}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {agent.providers_queried.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Providers:</span>
+                        <span>{agent.providers_queried.join(', ')}</span>
                       </div>
-                    </div>
-                  )}
+                    )}
+                    {agent.duration_seconds !== undefined && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Duration:</span>
+                        <span>{agent.duration_seconds}s</span>
+                      </div>
+                    )}
+                  </div>
 
-                  {/* Evidence */}
-                  {agent.evidence.length > 0 && (
-                    <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">
-                        Evidence Found
-                      </p>
-                      <ul className="list-disc list-inside space-y-1 text-xs">
-                        {agent.evidence.map((item, idx) => (
-                          <li key={idx}>{item}</li>
-                        ))}
-                      </ul>
+                  {/* AI Analysis - Single box with white/light grey background */}
+                  {agent.ai_analysis && (
+                    <div className="p-4 rounded-lg bg-white border border-gray-200">
+                      <div className="space-y-2 text-xs text-gray-700">
+                        {agent.ai_analysis.split('\n').map((line, idx) => {
+                          const trimmedLine = line.trim();
+                          
+                          // Skip empty lines
+                          if (!trimmedLine) return null;
+                          
+                          // Remove markdown formatting (**, ••, etc.)
+                          const cleanLine = trimmedLine.replace(/\*\*/g, '').replace(/••/g, '');
+                          
+                          // Section headers (all caps with colon)
+                          if (/^[A-Z\s]+:/.test(cleanLine)) {
+                            return (
+                              <p key={idx} className="font-bold text-gray-900 mt-3 mb-1 first:mt-0">
+                                {cleanLine}
+                              </p>
+                            );
+                          }
+                          
+                          // Bullet points - highlight key terms
+                          if (cleanLine.startsWith('•') || cleanLine.startsWith('-')) {
+                            // Extract and bold numbers, percentages, and key technical terms
+                            const parts = cleanLine.split(/(\d+\.?\d*%?|\d+MB|\d+GB|\d+s|Lambda|EC2|RDS|CloudWatch|ERROR|WARNING|CRITICAL)/g);
+                            return (
+                              <p key={idx} className="text-gray-700 leading-relaxed pl-3">
+                                {parts.map((part, i) => {
+                                  // Bold numbers, percentages, sizes, and key terms
+                                  if (/\d+\.?\d*%?|\d+MB|\d+GB|\d+s|Lambda|EC2|RDS|CloudWatch|ERROR|WARNING|CRITICAL/.test(part)) {
+                                    return <span key={i} className="font-semibold text-gray-900">{part}</span>;
+                                  }
+                                  return part;
+                                })}
+                              </p>
+                            );
+                          }
+                          
+                          // Regular text - highlight key terms
+                          const parts = cleanLine.split(/(\d+\.?\d*%?|\d+MB|\d+GB|\d+s|Lambda|EC2|RDS|CloudWatch|ERROR|WARNING|CRITICAL|high|low|critical|failed|success)/gi);
+                          return (
+                            <p key={idx} className="text-gray-700 leading-relaxed">
+                              {parts.map((part, i) => {
+                                // Bold important terms and numbers
+                                if (/\d+\.?\d*%?|\d+MB|\d+GB|\d+s|Lambda|EC2|RDS|CloudWatch|ERROR|WARNING|CRITICAL|high|low|critical|failed|success/i.test(part)) {
+                                  return <span key={i} className="font-semibold text-gray-900">{part}</span>;
+                                }
+                                return part;
+                              })}
+                            </p>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>

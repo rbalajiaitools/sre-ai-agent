@@ -33,7 +33,7 @@ export function EvidenceDrawer({ agents }: EvidenceDrawerProps) {
 
   // Filter evidence by search
   const getFilteredEvidence = (agent: AgentResult) => {
-    if (!searchQuery) return agent.evidence;
+    if (!searchQuery || !agent.evidence) return agent.evidence || [];
     return agent.evidence.filter((e) =>
       e.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -108,7 +108,7 @@ export function EvidenceDrawer({ agents }: EvidenceDrawerProps) {
               {isExpanded && (
                 <div className="p-3 pt-0 space-y-2">
                   {/* Provider info */}
-                  {agent.providers_queried.length > 0 && (
+                  {agent.providers_queried && agent.providers_queried.length > 0 && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                       <span className="font-medium">Providers:</span>
                       <span>{agent.providers_queried.join(', ').toUpperCase()}</span>
@@ -116,10 +116,12 @@ export function EvidenceDrawer({ agents }: EvidenceDrawerProps) {
                   )}
 
                   {/* Duration */}
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-                    <span className="font-medium">Duration:</span>
-                    <span>{agent.duration_seconds}s</span>
-                  </div>
+                  {agent.duration_seconds !== undefined && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+                      <span className="font-medium">Duration:</span>
+                      <span>{agent.duration_seconds}s</span>
+                    </div>
+                  )}
 
                   {/* Evidence items */}
                   {evidence.length > 0 ? (

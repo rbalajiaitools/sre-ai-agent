@@ -1,14 +1,17 @@
 /**
  * Investigation Detail Page - full-page detail layout
  */
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, XCircle, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useInvestigation } from '../hooks';
+import { useInvestigation, useCancelInvestigation } from '../hooks';
 import { AgentTimeline } from './AgentTimeline';
 import { RCACard } from './RCACard';
 import { ResolutionPanel } from './ResolutionPanel';
 import { EvidenceDrawer } from './EvidenceDrawer';
+import { SaveAsKnowledgeDialog } from './SaveAsKnowledgeDialog';
+import { RelatedKnowledge } from './RelatedKnowledge';
 import { InvestigationStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { statusColors } from '@/lib/colors';
@@ -17,6 +20,14 @@ export function InvestigationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: investigation, isLoading, isError } = useInvestigation(id || null);
+  const cancelMutation = useCancelInvestigation(id || '');
+  const [saveKnowledgeOpen, setSaveKnowledgeOpen] = useState(false);
+
+  const handleCancel = () => {
+    if (window.confirm('Are you sure you want to cancel this investigation?')) {
+      cancelMutation.mutate();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -73,16 +84,34 @@ export function InvestigationDetailPage() {
   };
 
   const getDuration = () => {
-    const start = new Date(investigation.started_at);
-    const end = investigation.completed_at
-      ? new Date(investigation.completed_at)
-      : new Date();
-    const seconds = Math.floor((end.getTime() - start.getTime()) / 1000);
-    
-    if (seconds < 60) return `${seconds}s`;
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}m ${secs}s`;
+    try {
+      // Only show duration if investigation is completed or has been running for at least 1 second
+      const start = new Date(investigation.started_at);
+      const end = investigation.completed_at
+        ? new Date(investigation.completed_at)
+        : new Date();
+      
+      // Check if dates are valid
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return '0s';
+      }
+      
+      const seconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+      
+      // If negative duration (clock skew), show 0s
+      if (seconds < 0) return '0s';
+      
+      // If investigation just started (less than 1 second), show "0s"
+      if (seconds < 1) return '0s';
+      
+      if (seconds < 60) return `${seconds}s`;
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${mins}m ${secs}s`;
+    } catch (error) {
+      console.error('Error calculating duration:', error);
+      return '0s';
+    }
   };
 
   const elapsedSeconds = investigation.completed_at
@@ -97,9 +126,9 @@ export function InvestigationDetailPage() {
       );
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden bg-background">
       {/* Top bar - Fixed */}
-      <div className="flex-shrink-0 border-b bg-background p-4">
+      <div className="flex-shrink-0 border-b bg-white p-4">
         <div className="flex items-center gap-4 mb-3">
           <Button
             variant="ghost"
@@ -125,13 +154,37 @@ export function InvestigationDetailPage() {
               )}
             </div>
           </div>
+          {(investigation.status === InvestigationStatus.INVESTIGATING || investigation.status === InvestigationStatus.STARTED) && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCancel}
+              disabled={cancelMutation.isPending}
+            >
+              <XCircle className="h-4 w-4 mr-2" aria-hidden="true" />
+              {cancelMutation.isPending ? 'Canceling...' : 'Cancel Investigation'}
+            </Button>
+          )}
+          {(investigation.status === InvestigationStatus.RESOLVED || investigation.status === InvestigationStatus.RCA_COMPLETE) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSaveKnowledgeOpen(true)}
+              className="gap-2"
+            >
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+              Save as Knowledge
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-4 text-sm">
           {getStatusBadge(investigation.status)}
           <span className="text-muted-foreground">
             Started {new Date(investigation.started_at).toLocaleString()}
           </span>
-          <span className="text-muted-foreground">Duration: {getDuration()}</span>
+          {investigation.completed_at && (
+            <span className="text-muted-foreground">Duration: {getDuration()}</span>
+          )}
         </div>
       </div>
 
@@ -143,6 +196,7 @@ export function InvestigationDetailPage() {
             <AgentTimeline
               agents={investigation.agent_results || []}
               elapsedSeconds={elapsedSeconds}
+              isCompleted={!!investigation.completed_at}
             />
           </div>
 
@@ -170,12 +224,24 @@ export function InvestigationDetailPage() {
             )}
           </div>
 
-          {/* Right: Evidence Drawer (25%) */}
-          <div className="col-span-3">
+          {/* Right: Evidence Drawer + Related Knowledge (25%) */}
+          <div className="col-span-3 space-y-4">
+            <RelatedKnowledge
+              serviceName={investigation.service_name || undefined}
+              incidentNumber={investigation.incident_number}
+            />
             <EvidenceDrawer agents={investigation.agent_results || []} />
           </div>
         </div>
       </div>
+
+      {/* Save as Knowledge Dialog */}
+      <SaveAsKnowledgeDialog
+        investigationId={investigation.id}
+        incidentNumber={investigation.incident_number}
+        open={saveKnowledgeOpen}
+        onClose={() => setSaveKnowledgeOpen(false)}
+      />
     </div>
   );
 }

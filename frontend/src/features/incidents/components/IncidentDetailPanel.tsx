@@ -185,26 +185,6 @@ export function IncidentDetailPanel({
           </Button>
         </div>
       </div>
-
-      {/* Loading overlay when starting investigation */}
-      {startInvestigationMutation.isPending && (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="text-center space-y-4">
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-lg font-semibold">Starting Investigation</p>
-              <p className="text-sm text-muted-foreground">
-                Initializing 5 specialist agents...
-              </p>
-              <p className="text-xs text-muted-foreground">
-                This may take 15-20 seconds
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
