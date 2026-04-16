@@ -645,10 +645,45 @@ async def run_investigation_background(
     """Run investigation in background with comprehensive error handling."""
     logger.info("background_investigation_starting", investigation_id=investigation_id)
     
+    # Set a maximum timeout for the entire investigation
+    import asyncio
+    
     try:
-        from app.db.base import get_db_session
+        # Run investigation with 5 minute timeout
+        await asyncio.wait_for(
+            _run_investigation_internal(investigation_id, tenant_id, incident),
+            timeout=300.0  # 5 minutes
+        )
+    except asyncio.TimeoutError:
+        logger.error("investigation_timeout", investigation_id=investigation_id)
+        # Update status to failed due to timeout
+        try:
+            from app.db.base import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                await crud.update_investigation(
+                    db=db,
+                    investigation_id=investigation_id,
+                    status="failed"
+                )
+                logger.info("investigation_marked_failed_timeout", investigation_id=investigation_id)
+        except Exception as update_error:
+            logger.error("failed_to_update_timeout_status", error=str(update_error))
+    except Exception as e:
+        logger.error("background_investigation_error", investigation_id=investigation_id, error=str(e))
+        import traceback
+        logger.error("background_investigation_traceback", traceback=traceback.format_exc())
+
+
+async def _run_investigation_internal(
+    investigation_id: str,
+    tenant_id: str,
+    incident: any
+):
+    """Internal investigation logic."""
+    try:
+        from app.db.base import AsyncSessionLocal
         
-        async for db in get_db_session():
+        async with AsyncSessionLocal() as db:
             try:
                 # Get ServiceNow connector to fetch full incident details
                 connector = get_servicenow_connector()
@@ -741,6 +776,7 @@ async def run_investigation_background(
                     # Search for relevant knowledge base entries
                     relevant_knowledge = []
                     knowledge_used_ids = []
+                    knowledge_entries_for_frontend = []
                     try:
                         search_query = f"{service_name} {description}"
                         knowledge_results = await crud.search_relevant_knowledge(
@@ -757,6 +793,22 @@ async def run_investigation_background(
                                 for kb in knowledge_results
                             ]
                             knowledge_used_ids = [kb.id for kb in knowledge_results]
+                            
+                            # Prepare knowledge for frontend
+                            knowledge_entries_for_frontend = [
+                                {
+                                    'id': kb.id,
+                                    'title': kb.title,
+                                    'description': kb.description,
+                                    'service_name': kb.service_name,
+                                    'root_cause': kb.root_cause,
+                                    'resolution': kb.resolution,
+                                    'tags': kb.tags,
+                                    'created_at': kb.created_at.isoformat() if kb.created_at else None
+                                }
+                                for kb in knowledge_results
+                            ]
+                            
                             logger.info("relevant_knowledge_found", 
                                        investigation_id=investigation_id,
                                        count=len(knowledge_results))
@@ -765,20 +817,24 @@ async def run_investigation_background(
                     
                     knowledge_context = '\n'.join(relevant_knowledge) if relevant_knowledge else ""
                     
-                    # Generate RCA
-                    rca_prompt = f"""Based on the following investigation findings for service '{service_name}', provide a Root Cause Analysis:
+                    # Generate RCA with explicit instruction to focus on current state
+                    current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
+                    rca_prompt = f"""Based on the following CURRENT investigation findings for service '{service_name}', provide a Root Cause Analysis.
 
+IMPORTANT: This investigation was conducted at {current_time}. Focus on the CURRENT state of resources and recent activity, NOT historical timeframes. If resources exist NOW, they are relevant regardless of when they were created.
+
+Investigation Findings:
 {findings_text}
 
 {knowledge_context}
 
 Provide a structured RCA with:
-1. Root Cause (1-2 sentences)
-2. Contributing Factors (bullet points)
-3. Impact Assessment
+1. Root Cause (1-2 sentences) - Focus on what is CURRENTLY wrong or misconfigured
+2. Contributing Factors (bullet points) - Based on CURRENT findings
+3. Impact Assessment - CURRENT impact on the service
 4. Confidence Level (High/Medium/Low)
 
-Be concise and actionable."""
+Do NOT make assumptions about resource creation dates or historical timeframes. Focus on the CURRENT state and configuration issues found."""
                     
                     rca_response = ai_client.chat.completions.create(
                         model=settings.llm.azure_openai_deployment_name,
@@ -792,17 +848,17 @@ Be concise and actionable."""
                     
                     rca_text = rca_response.choices[0].message.content
                     
-                    # Generate Resolution with structured format
-                    resolution_prompt = f"""Based on this Root Cause Analysis:
+                    # Generate Resolution with structured format - focus on current state
+                    resolution_prompt = f"""Based on this Root Cause Analysis for CURRENT issues:
 
 {rca_text}
 
-And these investigation findings:
+And these CURRENT investigation findings:
 {findings_text}
 
 {knowledge_context}
 
-Provide a detailed resolution plan with clear, numbered steps:
+Provide a detailed resolution plan with clear, numbered steps. Focus on fixing CURRENT configuration issues and problems, not historical concerns.
 
 IMMEDIATE ACTIONS (to stop the bleeding):
 1. [First immediate action]
@@ -823,7 +879,7 @@ MONITORING RECOMMENDATIONS:
 1. [First monitoring recommendation]
 2. [Second monitoring recommendation]
 
-Be specific, actionable, and use numbered lists for each section."""
+Be specific, actionable, and use numbered lists for each section. Focus on CURRENT state and configuration."""
                     
                     resolution_response = ai_client.chat.completions.create(
                         model=settings.llm.azure_openai_deployment_name,
@@ -931,12 +987,12 @@ Be specific, actionable, and use numbered lists for each section."""
                     agent_results=agent_results,
                     rca=rca,
                     resolution=resolution,
+                    related_knowledge=knowledge_entries_for_frontend,
                     completed_at=datetime.now(timezone.utc)
                 )
                 
                 logger.info("investigation_completed", investigation_id=investigation_id, agents_run=len(agent_results))
-                break
-            
+                
             except Exception as inner_error:
                 logger.error("investigation_execution_error", 
                             investigation_id=investigation_id,
@@ -953,29 +1009,27 @@ Be specific, actionable, and use numbered lists for each section."""
                         investigation_id=investigation_id,
                         status="failed"
                     )
+                    logger.info("investigation_marked_failed", investigation_id=investigation_id)
                 except Exception as update_error:
                     logger.error("failed_to_update_investigation_status", 
                                 investigation_id=investigation_id,
                                 error=str(update_error))
-                break
             
     except Exception as e:
-        logger.error("background_investigation_error", investigation_id=investigation_id, error=str(e))
+        logger.error("investigation_internal_error", investigation_id=investigation_id, error=str(e))
         import traceback
-        logger.error("background_investigation_traceback", 
-                    investigation_id=investigation_id,
-                    traceback=traceback.format_exc())
+        logger.error("investigation_internal_traceback", traceback=traceback.format_exc())
         
         # Try to update investigation status to failed
         try:
-            from app.db.base import get_db_session
-            async for db in get_db_session():
+            from app.db.base import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
                 await crud.update_investigation(
                     db=db,
                     investigation_id=investigation_id,
                     status="failed"
                 )
-                break
+                logger.info("investigation_marked_failed_exception", investigation_id=investigation_id)
         except Exception as final_error:
             logger.error("final_status_update_failed", 
                         investigation_id=investigation_id,
@@ -1348,6 +1402,7 @@ Provide a structured analysis with clear sections."""
 async def send_chat_message_real(
     thread_id: str,
     request: dict,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """Send a message in a chat thread with AI response."""
@@ -1422,90 +1477,115 @@ async def send_chat_message_real(
             is_investigation_request = any(keyword in content.lower() for keyword in ['investigate', 'investigation', 'analyze incident', 'troubleshoot'])
             incident_number_match = None
             
-            # Extract incident number (INC followed by digits)
+            # Extract incident number (INC followed by digits) from message
             import re
             incident_pattern = r'INC\d{7,}'
             matches = re.findall(incident_pattern, content.upper())
             if matches:
                 incident_number_match = matches[0]
             
+            # Check if incident is attached via context
+            attached_incident = None
+            if context and "incident" in context:
+                attached_incident = context["incident"]
+                # Get incident number from attached incident
+                if isinstance(attached_incident, dict) and "number" in attached_incident:
+                    incident_number_match = attached_incident["number"]
+                    logger.info("incident_attached_via_context", incident_number=incident_number_match)
+            
+            # Initialize ai_prompt
+            ai_prompt = None
+            
             # If user wants to investigate an incident, trigger investigation
             if is_investigation_request and incident_number_match:
-                logger.info("investigation_requested", incident_number=incident_number_match)
+                logger.info("investigation_requested", incident_number=incident_number_match, has_attached_incident=bool(attached_incident))
                 
-                # Get ServiceNow integration
-                sn_integrations = await crud.get_integrations(db, tenant_id, "servicenow")
+                # Use attached incident if available, otherwise fetch from ServiceNow
+                incident = None
                 
-                if sn_integrations:
-                    sn_integration = sn_integrations[0]
-                    
-                    # Fetch incident from ServiceNow using connector
-                    connector = get_servicenow_connector()
-                    
-                    try:
-                        from uuid import UUID
-                        tenant_uuid = UUID(tenant_id)
-                        incident = await connector.get_incident(
-                            tenant_id=tenant_uuid,
-                            incident_number=incident_number_match
-                        )
-                    except Exception as e:
-                        logger.error("servicenow_fetch_error", error=str(e))
-                        incident = None
-                    
-                    if incident:
-                        # Create investigation
-                        investigation = await crud.create_investigation(
-                            db=db,
-                            tenant_id=tenant_id,
-                            incident_number=incident_number_match,
-                            status="started"
-                        )
-                        
-                        # Update thread with investigation link
-                        thread.investigation_id = investigation.id
-                        thread.incident_number = incident_number_match
-                        await db.commit()
-                        
-                        # Store assistant message with investigation link
-                        assistant_message = await crud.create_chat_message(
-                            db=db,
-                            thread_id=thread_id,
-                            role="assistant",
-                            content=f"I've started investigating incident {incident_number_match}. I'll analyze logs, metrics, and infrastructure to identify the root cause.\n\nClick below to view the investigation progress.",
-                            message_type="investigation_start",
-                            message_metadata={
-                                "investigation_id": investigation.id,
-                                "incident_number": incident_number_match,
-                                "incident": {
-                                    "number": incident.number,
-                                    "short_description": incident.short_description,
-                                    "priority": incident.priority,
-                                    "state": incident.state
-                                }
-                            }
-                        )
-                        
-                        logger.info("investigation_started", investigation_id=investigation.id)
-                        
-                        # Return investigation start message
-                        return {
-                            "id": assistant_message.id,
-                            "thread_id": assistant_message.thread_id,
-                            "role": assistant_message.role,
-                            "content": assistant_message.content,
-                            "message_type": assistant_message.message_type,
-                            "metadata": assistant_message.message_metadata or {},
-                            "created_at": assistant_message.created_at.isoformat()
-                        }
-                    else:
-                        ai_prompt = f"User asked to investigate incident {incident_number_match}, but I couldn't find this incident in ServiceNow. Please inform the user that the incident was not found and ask them to verify the incident number."
+                if attached_incident and isinstance(attached_incident, dict):
+                    # Use the attached incident data directly
+                    logger.info("using_attached_incident_for_investigation", incident_number=incident_number_match)
+                    # Convert attached incident dict to object-like structure
+                    from types import SimpleNamespace
+                    incident = SimpleNamespace(**attached_incident)
                 else:
-                    ai_prompt = f"User asked to investigate incident {incident_number_match}, but ServiceNow is not configured. Please inform the user to configure ServiceNow integration in Settings first."
+                    # Fetch from ServiceNow
+                    sn_integrations = await crud.get_integrations(db, tenant_id, "servicenow")
+                    
+                    if sn_integrations:
+                        connector = get_servicenow_connector()
+                        
+                        try:
+                            from uuid import UUID
+                            tenant_uuid = UUID(tenant_id)
+                            incident = await connector.get_incident(
+                                tenant_id=tenant_uuid,
+                                incident_number=incident_number_match
+                            )
+                        except Exception as e:
+                            logger.error("servicenow_fetch_error", error=str(e))
+                            incident = None
+                
+                if incident:
+                    # Create investigation
+                    investigation = await crud.create_investigation(
+                        db=db,
+                        tenant_id=tenant_id,
+                        incident_number=incident_number_match,
+                        status="started"
+                    )
+                    
+                    # Update thread with investigation link
+                    thread.investigation_id = investigation.id
+                    thread.incident_number = incident_number_match
+                    await db.commit()
+                    
+                    # Start investigation in background
+                    background_tasks.add_task(
+                        run_investigation_background,
+                        investigation_id=investigation.id,
+                        tenant_id=tenant_id,
+                        incident=incident
+                    )
+                    
+                    # Store assistant message with investigation link
+                    assistant_message = await crud.create_chat_message(
+                        db=db,
+                        thread_id=thread_id,
+                        role="assistant",
+                        content=f"I've started investigating incident {incident_number_match}. I'll analyze logs, metrics, and infrastructure to identify the root cause.\n\nClick below to view the investigation progress.",
+                        message_type="investigation_start",
+                        message_metadata={
+                            "investigation_id": investigation.id,
+                            "incident_number": incident_number_match,
+                            "incident": {
+                                "number": getattr(incident, 'number', incident_number_match),
+                                "short_description": getattr(incident, 'short_description', 'N/A'),
+                                "priority": getattr(incident, 'priority', 'N/A'),
+                                "state": getattr(incident, 'state', 'N/A')
+                            }
+                        }
+                    )
+                    
+                    logger.info("investigation_started", investigation_id=investigation.id)
+                    
+                    # Return investigation start message
+                    return {
+                        "id": assistant_message.id,
+                        "thread_id": assistant_message.thread_id,
+                        "role": assistant_message.role,
+                        "content": assistant_message.content,
+                        "message_type": assistant_message.message_type,
+                        "metadata": assistant_message.message_metadata or {},
+                        "created_at": assistant_message.created_at.isoformat()
+                    }
+                else:
+                    ai_prompt = f"User asked to investigate incident {incident_number_match}, but I couldn't find this incident. The incident may not exist or ServiceNow is not configured. Please inform the user that the incident was not found and ask them to verify the incident number or configure ServiceNow integration in Settings."
             
-            # Check if this is a ServiceNow incident query
-            elif incident_number_match or any(keyword in content.lower() for keyword in ['incident', 'servicenow', 'inc0', 'ticket']):
-                logger.info("servicenow_query_detected", content=content)
+            # Check if this is a ServiceNow incident query (not investigation, just query)
+            if not ai_prompt and (incident_number_match or attached_incident or any(keyword in content.lower() for keyword in ['incident', 'servicenow', 'inc0', 'ticket', 'recent incident'])):
+                logger.info("servicenow_query_detected", content=content, has_attached_incident=bool(attached_incident))
                 
                 # Get ServiceNow integration
                 sn_integrations = await crud.get_integrations(db, tenant_id, "servicenow")
@@ -1514,8 +1594,23 @@ async def send_chat_message_real(
                     connector = get_servicenow_connector()
                     servicenow_data = ""
                     
-                    # If specific incident number mentioned, fetch that incident
-                    if incident_number_match:
+                    # If incident is attached via context, use that data directly
+                    if attached_incident and isinstance(attached_incident, dict):
+                        logger.info("using_attached_incident_data", incident_number=attached_incident.get("number"))
+                        servicenow_data = f"""Incident Details for {attached_incident.get('number', 'Unknown')}:
+- Short Description: {attached_incident.get('short_description', 'N/A')}
+- Priority: P{attached_incident.get('priority', 'N/A')}
+- State: {attached_incident.get('state', 'N/A')}
+- Opened: {attached_incident.get('opened_at', 'N/A')}
+- Assigned To: {attached_incident.get('assigned_to', 'Unassigned')}
+- Description: {attached_incident.get('description', 'No description')}
+- Impact: {attached_incident.get('impact', 'N/A')}
+- Urgency: {attached_incident.get('urgency', 'N/A')}
+- Category: {attached_incident.get('category', 'Not specified')}
+- Subcategory: {attached_incident.get('subcategory', 'Not specified')}
+"""
+                    # If specific incident number mentioned (but not attached), fetch that incident
+                    elif incident_number_match:
                         try:
                             from uuid import UUID
                             tenant_uuid = UUID(tenant_id)
@@ -1573,11 +1668,51 @@ Please provide a helpful, concise response based on this data. If the user wants
 
 Note: ServiceNow integration is not configured. Please ask the user to configure ServiceNow credentials in Settings first."""
             
+            # Check if this is an investigation/RCA query
+            if not ai_prompt and any(keyword in content.lower() for keyword in ['investigation', 'rca', 'root cause', 'analysis report']):
+                logger.info("investigation_query_detected", content=content)
+                
+                # Fetch recent investigations from database
+                try:
+                    result = await db.execute(
+                        select(Investigation)
+                        .where(Investigation.tenant_id == tenant_id)
+                        .order_by(Investigation.started_at.desc())
+                        .limit(10)
+                    )
+                    investigations = result.scalars().all()
+                    
+                    if investigations:
+                        investigation_data = f"Recent Investigations (Total: {len(investigations)}):\n\n"
+                        for inv in investigations:
+                            investigation_data += f"- {inv.incident_number}: {inv.service_name or 'Unknown Service'}\n"
+                            investigation_data += f"  Status: {inv.status}\n"
+                            investigation_data += f"  Started: {inv.started_at}\n"
+                            if inv.root_cause:
+                                investigation_data += f"  Root Cause: {inv.root_cause[:200]}...\n"
+                            if inv.resolution:
+                                investigation_data += f"  Resolution: {inv.resolution[:200]}...\n"
+                            investigation_data += "\n"
+                    else:
+                        investigation_data = "No investigations found in the system."
+                    
+                    ai_prompt = f"""User question: {content}
+
+Here are the recent investigations and RCA reports:
+{investigation_data}
+
+Please provide a helpful, concise response based on this data."""
+                except Exception as e:
+                    logger.error("investigation_fetch_error", error=str(e))
+                    ai_prompt = f"""User question: {content}
+
+Error fetching investigation data: {str(e)}
+
+Please inform the user there was an issue retrieving investigation data."""
+            
             # Determine if this is an AWS query
-            elif any(keyword in content.lower() for keyword in ['aws', 'services', 'ec2', 'rds', 'lambda', 'account', 'running', 'resources']):
-                is_aws_query = True
-                # Get AWS integrations
-                integrations = await crud.get_integrations(db, tenant_id, "aws")
+            if not ai_prompt and any(keyword in content.lower() for keyword in ['aws', 'services', 'ec2', 'rds', 'lambda', 'account', 'running', 'resources', 's3', 'bucket', 'cloudwatch']):
+                logger.info("aws_query_detected", content=content)
                 # Get AWS integrations
                 integrations = await crud.get_integrations(db, tenant_id, "aws")
                 
@@ -1769,8 +1904,10 @@ Please provide a helpful response explaining this limitation and suggesting next
                     ai_prompt = f"""User question: {content}
 
 Note: No AWS integration configured. Please ask the user to configure AWS credentials in Settings first."""
-            else:
-                # General question
+            
+            # If no specific handler matched, treat as general question
+            if not ai_prompt:
+                logger.info("general_query_detected", content=content)
                 ai_prompt = content
             
             # Call Azure OpenAI
@@ -1911,6 +2048,7 @@ async def get_investigation_real(investigation_id: str, db: AsyncSession = Depen
             "agent_results": investigation.agent_results or [],
             "rca": investigation.rca,
             "resolution": investigation.resolution,
+            "related_knowledge": investigation.related_knowledge or [],
             "approved_by": investigation.approved_by,
             "approved_at": investigation.approved_at.isoformat() if investigation.approved_at else None,
             "started_at": investigation.started_at.isoformat(),

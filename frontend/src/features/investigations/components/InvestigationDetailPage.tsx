@@ -205,12 +205,20 @@ export function InvestigationDetailPage() {
             {investigation.rca ? (
               <RCACard rca={investigation.rca} />
             ) : (
-              <div className="p-6 rounded-lg border bg-card text-center">
-                <p className="text-muted-foreground">
-                  {investigation.status === InvestigationStatus.INVESTIGATING
-                    ? 'Investigation in progress...'
-                    : 'No RCA available'}
-                </p>
+              <div className="p-6 rounded-lg border bg-card">
+                {(investigation.status === InvestigationStatus.INVESTIGATING || investigation.status === InvestigationStatus.STARTED) ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" aria-label="Investigation in progress" />
+                    <p className="text-lg font-medium mb-2">Investigation in Progress</p>
+                    <p className="text-sm text-muted-foreground text-center">
+                      Analyzing logs, metrics, and infrastructure to identify the root cause...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No RCA available</p>
+                  </div>
+                )}
               </div>
             )}
 

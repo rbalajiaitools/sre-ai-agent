@@ -740,35 +740,85 @@ async def search_relevant_knowledge(
     
     query = select(KnowledgeBase).where(KnowledgeBase.tenant_id == tenant_id)
     
-    # Prioritize exact service match
-    if service_name:
-        query = query.where(KnowledgeBase.service_name == service_name)
-    
-    result = await db.execute(query.order_by(KnowledgeBase.usage_count.desc()).limit(limit * 2))
+    result = await db.execute(query.order_by(KnowledgeBase.usage_count.desc()).limit(limit * 3))
     knowledge_list = list(result.scalars().all())
     
-    # If search text provided, filter by title/description/content
-    if search_text and knowledge_list:
-        search_lower = search_text.lower()
-        scored_results = []
+    if not knowledge_list:
+        return []
+    
+    # Score each knowledge entry based on relevance
+    scored_results = []
+    
+    for k in knowledge_list:
+        score = 0
         
-        for k in knowledge_list:
-            score = 0
+        # Exact service name match (highest priority)
+        if service_name and k.service_name:
+            if k.service_name.lower() == service_name.lower():
+                score += 10
+            # Partial service name match
+            elif service_name.lower() in k.service_name.lower() or k.service_name.lower() in service_name.lower():
+                score += 5
+            # Check for common keywords (s3, lambda, ec2, etc.)
+            service_keywords = set(service_name.lower().split('-'))
+            kb_keywords = set(k.service_name.lower().split('-'))
+            common_keywords = service_keywords & kb_keywords
+            if common_keywords:
+                score += len(common_keywords) * 2
+        
+        # Search text matching
+        if search_text:
+            search_lower = search_text.lower()
+            
+            # Title match
             if k.title and search_lower in k.title.lower():
                 score += 3
+            
+            # Description match
             if k.description and search_lower in k.description.lower():
                 score += 2
+            
+            # Content match
             if k.content and search_lower in k.content.lower():
                 score += 1
             
-            if score > 0:
-                scored_results.append((score, k))
+            # Root cause match
+            if k.root_cause and search_lower in k.root_cause.lower():
+                score += 2
+            
+            # Check for technology keywords (s3, bucket, lambda, etc.)
+            tech_keywords = ['s3', 'bucket', 'lambda', 'ec2', 'rds', 'dynamodb', 'cloudfront', 
+                           'website', 'static', 'api', 'database', 'cache', 'redis']
+            for keyword in tech_keywords:
+                if keyword in search_lower:
+                    # Check if this keyword appears in knowledge
+                    kb_text = f"{k.title} {k.description} {k.content} {k.root_cause}".lower()
+                    if keyword in kb_text:
+                        score += 4  # Strong match for technology keywords
         
-        # Sort by score and return top results
-        scored_results.sort(key=lambda x: x[0], reverse=True)
-        return [k for _, k in scored_results[:limit]]
+        # Tags matching
+        if k.tags and (service_name or search_text):
+            search_terms = []
+            if service_name:
+                search_terms.extend(service_name.lower().split('-'))
+            if search_text:
+                search_terms.extend(search_text.lower().split())
+            
+            for tag in k.tags:
+                if any(term in tag.lower() for term in search_terms):
+                    score += 2
+        
+        # Only include if there's some relevance
+        if score > 0:
+            scored_results.append((score, k))
     
-    return knowledge_list[:limit]
+    # Sort by score (descending) and return top results
+    scored_results.sort(key=lambda x: x[0], reverse=True)
+    
+    # Return only if score is meaningful (at least 2)
+    relevant_results = [(score, k) for score, k in scored_results if score >= 2]
+    
+    return [k for _, k in relevant_results[:limit]]
 
 
 async def track_knowledge_usage(

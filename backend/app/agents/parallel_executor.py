@@ -158,13 +158,14 @@ class ParallelAgentExecutor:
             }
     
     def _get_providers_for_agent(self, agent_name: str) -> list:
-        """Get list of AWS services queried by each agent type."""
+        """Get list of AWS services queried by each agent type.
+        Returns comprehensive list of all possible services each agent can check."""
         providers_map = {
-            'infrastructure': ['EC2', 'Lambda', 'ECS', 'ELB'],
-            'logs': ['CloudWatch Logs', 'CloudTrail'],
-            'metrics': ['CloudWatch Metrics'],
-            'security': ['IAM', 'Security Groups', 'CloudTrail'],
-            'code': ['Lambda', 'CodeDeploy', 'CloudFormation']
+            'infrastructure': ['S3', 'CloudFront', 'EC2', 'Lambda', 'ECS', 'ELB', 'RDS', 'DynamoDB', 'API Gateway'],
+            'logs': ['CloudWatch Logs', 'CloudTrail', 'S3 Access Logs'],
+            'metrics': ['CloudWatch Metrics', 'CloudWatch Alarms'],
+            'security': ['IAM', 'Security Groups', 'CloudTrail', 'S3 Bucket Policies'],
+            'code': ['Lambda', 'CodeDeploy', 'CloudFormation', 'CodePipeline']
         }
         return providers_map.get(agent_name, [])
     

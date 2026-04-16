@@ -1,14 +1,18 @@
 /**
- * Chat Page - Two-section layout with resizable left panel
+ * Chat Page - Unified chat interface with consistent UX
  */
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Zap, Image as ImageIcon, Search, Send, Trash2, MoreVertical } from 'lucide-react';
+import { Zap, Trash2, MoreVertical, Loader2 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
-import { useCreateThread, useChatThreads, useDeleteThread } from '../hooks';
+import { useCreateThread, useChatThreads, useDeleteThread, useChatMessages, useSendMessage } from '../hooks';
 import { useInvestigations } from '@/features/investigations/hooks';
-import { ChatWindow } from './ChatWindow';
-import { Button } from '@/components/ui/button';
+import { ChatContext } from '../types';
+import { MessageRenderer } from './MessageRenderer';
+import { ChatInput } from './ChatInput';
+import { IncidentPickerModal } from './IncidentPickerModal';
+import { ServicePickerModal } from './ServicePickerModal';
+import { Incident } from '@/types';
 import { formatDistanceToNow } from 'date-fns';
 import {
   DropdownMenu,
@@ -19,26 +23,12 @@ import {
 
 // Sample prompts for the empty state
 const samplePrompts = [
-  {
-    title: 'Check the memory usage and execution duration patterns for the cloudscore-demo-payment-processor Lambda function',
-    category: 'Connected Integrations: AWS'
-  },
-  {
-    title: 'What code changes or feature improvements were made to Lambda functions in the past week?',
-    category: 'Connected Integrations: AWS'
-  },
-  {
-    title: 'List all running EC2 instances across all regions with their health status',
-    category: 'Connected Integrations: AWS'
-  },
-  {
-    title: 'Show me all failed deployments in the last 24 hours and their root causes',
-    category: 'Connected Integrations: AWS'
-  },
-  {
-    title: 'Show me error logs for the cloudscore-demo-payment-processor Lambda function in the past 3 days',
-    category: 'Connected Integrations: AWS'
-  }
+  'List all services running in my AWS account',
+  'Show me recent incidents and their status',
+  'What Lambda functions are deployed and their health?',
+  'Investigate incident INC0010001',
+  'Show me S3 buckets and their configurations',
+  'What are the recent CloudWatch alarms?',
 ];
 
 export function ChatPage() {
@@ -50,14 +40,24 @@ export function ChatPage() {
   const threadsQuery = useChatThreads();
   const investigationsQuery = useInvestigations();
   const deleteThreadMutation = useDeleteThread();
-  const [inputValue, setInputValue] = useState('');
   const [activeTab, setActiveTab] = useState<'investigations' | 'chats'>('investigations');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [context, setContext] = useState<ChatContext | undefined>();
+  const [showIncidentPicker, setShowIncidentPicker] = useState(false);
+  const [showServicePicker, setShowServicePicker] = useState(false);
   
   // Resizable left panel
   const [leftWidth, setLeftWidth] = useState(400); // Default 400px
   const isResizing = useRef(false);
   const MIN_WIDTH = 300;
   const MAX_WIDTH = 600;
+
+  // Get messages for active thread
+  const { data: messages, isLoading: messagesLoading } = useChatMessages(threadId || null);
+  
+  // Only create send mutation if we have an active thread
+  const sendMutationResult = useSendMessage(threadId || 'temp');
+  const [pendingMessage, setPendingMessage] = useState<{ content: string; context?: ChatContext } | null>(null);
 
   // Handle service context from URL (Topology → Chat flow)
   useEffect(() => {
@@ -80,27 +80,71 @@ export function ChatPage() {
     }
   }, [threadId, activeChatId, setActiveChatId]);
 
-  const handleNewChat = () => {
-    createThreadMutation.mutate(undefined);
-  };
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Listen for attach events from ChatInput
+  useEffect(() => {
+    const handleAttachIncident = () => setShowIncidentPicker(true);
+    const handleAttachService = () => setShowServicePicker(true);
+
+    window.addEventListener('attach-incident', handleAttachIncident);
+    window.addEventListener('attach-service', handleAttachService);
+
+    return () => {
+      window.removeEventListener('attach-incident', handleAttachIncident);
+      window.removeEventListener('attach-service', handleAttachService);
+    };
+  }, []);
 
   const handlePromptClick = (prompt: string) => {
-    // Create new thread and navigate, user can then send the message
-    createThreadMutation.mutate(undefined);
-  };
-
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
-    
-    // Create new thread and navigate, user can then send the message
-    createThreadMutation.mutate(undefined);
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
+    // If no active thread, create one first
+    if (!threadId) {
+      setPendingMessage({ content: prompt, context });
+      createThreadMutation.mutate(undefined);
+    } else {
+      // Already have a thread, just send the message
+      sendMutationResult.mutate({ content: prompt, context });
     }
+  };
+
+  const handleSend = (content: string, ctx?: ChatContext) => {
+    // If no active thread, create one first
+    if (!threadId) {
+      setPendingMessage({ content, context: ctx });
+      createThreadMutation.mutate(undefined);
+    } else {
+      // Already have a thread, just send the message
+      sendMutationResult.mutate({ content, context: ctx });
+    }
+  };
+
+  // When thread is created and we have a pending message, send it
+  useEffect(() => {
+    if (threadId && pendingMessage && !createThreadMutation.isPending) {
+      const { content, context: ctx } = pendingMessage;
+      setPendingMessage(null);
+      // Small delay to ensure thread is ready
+      setTimeout(() => {
+        sendMutationResult.mutate({ content, context: ctx });
+      }, 100);
+    }
+  }, [threadId, pendingMessage, createThreadMutation.isPending]);
+
+  const handleIncidentSelect = (incident: Incident) => {
+    setContext((prev) => ({
+      ...prev,
+      incident,
+    }));
+  };
+
+  const handleServiceSelect = (serviceName: string) => {
+    setContext((prev) => ({
+      ...prev,
+      service_name: serviceName,
+    }));
   };
 
   // Handle mouse move for resizing
@@ -299,76 +343,99 @@ export function ChatPage() {
 
       {/* Right Section - Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {activeChatId ? (
-          <ChatWindow threadId={activeChatId} />
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-start pt-16 px-4 max-w-4xl mx-auto w-full overflow-y-auto">
-            {/* Header with icon */}
-            <div className="flex items-center justify-center mb-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-                <Zap className="h-6 w-6 text-white" />
+        {/* Messages area - centered like Claude/ChatGPT */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-4 py-8">
+            {threadId && messages && messages.length > 0 ? (
+              <>
+                {messages.map((message) => (
+                  <MessageRenderer key={message.id} message={message} />
+                ))}
+                {/* Typing indicator */}
+                {sendMutationResult.isPending && (
+                  <div className="flex justify-start mb-6">
+                    <div className="flex gap-2 items-start">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex-shrink-0">
+                        <span className="text-xs font-semibold text-white">AI</span>
+                      </div>
+                      <div className="rounded-2xl bg-muted px-4 py-3">
+                        <div className="flex gap-1">
+                          <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '0ms' }} />
+                          <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '150ms' }} />
+                          <span className="w-2 h-2 rounded-full bg-muted-foreground/50 animate-bounce" style={{ animationDelay: '300ms' }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </>
+            ) : threadId && messagesLoading ? (
+              <div className="flex items-center justify-center h-full min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            </div>
-
-            {/* Main heading */}
-            <h1 className="text-3xl font-semibold mb-8 text-center">
-              What can I help you investigate today?
-            </h1>
-
-            {/* Input area */}
-            <div className="w-full mb-6">
-              <div className="relative">
-                <textarea
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask a question or describe a problem in your system. Use @ to mention services or dashboards."
-                  className="w-full min-h-[120px] p-4 pr-32 border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary bg-white text-sm"
-                />
-                <div className="absolute bottom-3 left-3 flex items-center gap-2">
-                  <button className="p-2 hover:bg-muted rounded-md transition-colors">
-                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                  </button>
-                  <button className="p-2 hover:bg-muted rounded-md transition-colors flex items-center">
-                    <Search className="h-4 w-4 text-muted-foreground" />
-                    <span className="ml-1 text-xs text-muted-foreground">Deep Investigation</span>
-                  </button>
+            ) : (
+              /* Empty state - show welcome message and prompts */
+              <div className="flex flex-col items-center justify-start pt-16">
+                {/* Header with icon */}
+                <div className="flex items-center justify-center mb-6">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
+                    <Zap className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <button
-                  onClick={handleSend}
-                  disabled={!inputValue.trim() || createThreadMutation.isPending}
-                  className="absolute bottom-3 right-3 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-                >
-                  {createThreadMutation.isPending ? 'Starting...' : 'Send'}
-                </button>
-              </div>
-              
-              {/* Connected integrations */}
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <span>Connected Integrations:</span>
-                  <span className="px-2 py-1 bg-muted rounded">AWS</span>
-                </div>
-                <span>💎 3 of 20 daily limit used</span>
-              </div>
-            </div>
 
-            {/* Sample prompts */}
-            <div className="w-full grid grid-cols-2 gap-3 mb-8">
-              {samplePrompts.map((prompt, index) => (
-                <button
-                  key={index}
-                  onClick={() => handlePromptClick(prompt.title)}
-                  className="p-4 text-left border border-border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <p className="text-sm mb-2">{prompt.title}</p>
-                  <p className="text-xs text-muted-foreground">{prompt.category}</p>
-                </button>
-              ))}
-            </div>
+                {/* Main heading */}
+                <h1 className="text-3xl font-semibold mb-4 text-center">
+                  What can I help you with today?
+                </h1>
+                
+                <p className="text-muted-foreground text-center mb-8 max-w-2xl">
+                  Ask me anything about your AWS account, services, incidents, investigations, or infrastructure.
+                  I can help you troubleshoot issues, analyze metrics, and provide insights.
+                </p>
+
+                {/* Sample prompts */}
+                <div className="w-full grid grid-cols-2 gap-3 mb-8">
+                  {samplePrompts.map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handlePromptClick(prompt)}
+                      disabled={createThreadMutation.isPending || sendMutationResult.isPending}
+                      className="p-4 text-left border border-border rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <p className="text-sm">{prompt}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* Input area - always visible at bottom */}
+        <div className="border-t bg-background">
+          <div className="max-w-3xl mx-auto px-4 py-4">
+            <ChatInput
+              onSend={handleSend}
+              disabled={sendMutationResult.isPending || createThreadMutation.isPending}
+              context={context}
+              onContextChange={setContext}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* Modals */}
+      <IncidentPickerModal
+        open={showIncidentPicker}
+        onClose={() => setShowIncidentPicker(false)}
+        onSelect={handleIncidentSelect}
+      />
+      <ServicePickerModal
+        open={showServicePicker}
+        onClose={() => setShowServicePicker(false)}
+        onSelect={handleServiceSelect}
+      />
     </div>
   );
 }

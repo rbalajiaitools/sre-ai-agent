@@ -25,6 +25,23 @@ export function ChatWindow({ threadId }: ChatWindowProps) {
   const { data: messages, isLoading, isError } = useChatMessages(threadId);
   const sendMutation = useSendMessage(threadId);
 
+  // Auto-send initial message from URL parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const initialMessage = params.get('initialMessage');
+    
+    if (initialMessage && messages && messages.length === 1 && !autoMessageSent && !sendMutation.isPending) {
+      // Only auto-send if there's just the welcome message
+      setAutoMessageSent(true);
+      
+      // Send the initial message
+      handleSend(initialMessage);
+      
+      // Clean up URL parameter
+      window.history.replaceState({}, '', `/chat/${threadId}`);
+    }
+  }, [messages, autoMessageSent, sendMutation.isPending, threadId]);
+
   // Auto-send message when service context is provided from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

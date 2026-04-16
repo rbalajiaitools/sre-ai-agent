@@ -101,6 +101,7 @@ class Investigation(Base):
     agent_results: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     rca: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     resolution: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    related_knowledge: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # Related knowledge base entries
     
     # Approval
     approved_by: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

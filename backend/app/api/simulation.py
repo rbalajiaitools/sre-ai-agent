@@ -85,6 +85,14 @@ async def get_services(
         # Return known services from topology
         services = [
             Service(
+                id="s3-demo-dashboard",
+                name="S3 Demo Dashboard",
+                type="static-website",
+                status="healthy",
+                current_load=15.0,
+                error_rate=0.0
+            ),
+            Service(
                 id="api-gateway",
                 name="API Gateway",
                 type="api",
@@ -193,8 +201,7 @@ async def run_simulation(
     service_id: str,
     scenario_type: str,
     severity: str,
-    duration_seconds: int,
-    db: AsyncSession
+    duration_seconds: int
 ):
     """Background task to run simulation."""
     try:
@@ -212,56 +219,225 @@ async def run_simulation(
         }
         multiplier = severity_multipliers.get(severity, 1.0)
         
-        # Simulate metrics
-        requests_per_second = int(100 * multiplier)
-        error_rate = 0.05 * multiplier if scenario_type == 'error' else 0.01
+        # For S3 Demo Dashboard, actually check if the website is accessible
+        actual_error_detected = False
+        actual_error_details = ""
         
-        total_requests = requests_per_second * duration_seconds
-        total_errors = int(total_requests * error_rate)
-        avg_latency = 50 * multiplier if scenario_type == 'latency' else 50
+        if service_id == 's3-demo-dashboard':
+            try:
+                import httpx
+                website_url = "http://cloudscore-demo-dashboard-181080507119.s3-website-us-east-1.amazonaws.com"
+                
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    try:
+                        response = await client.get(website_url)
+                        if response.status_code >= 400:
+                            actual_error_detected = True
+                            actual_error_details = f"Website returned {response.status_code} error"
+                            logger.warning("s3_website_error_detected", 
+                                         simulation_id=simulation_id,
+                                         status_code=response.status_code)
+                        else:
+                            logger.info("s3_website_accessible", 
+                                      simulation_id=simulation_id,
+                                      status_code=response.status_code)
+                    except Exception as http_error:
+                        actual_error_detected = True
+                        actual_error_details = f"Website unreachable: {str(http_error)}"
+                        logger.warning("s3_website_unreachable", 
+                                     simulation_id=simulation_id,
+                                     error=str(http_error))
+            except Exception as check_error:
+                logger.warning("s3_website_check_failed", 
+                             simulation_id=simulation_id,
+                             error=str(check_error))
+        
+        # Simulate metrics based on actual error or fake scenario
+        if actual_error_detected:
+            # Real error detected - use realistic metrics
+            requests_per_second = int(50 * multiplier)  # Lower traffic due to errors
+            error_rate = 0.95  # 95% error rate for real outage
+            total_requests = requests_per_second * duration_seconds
+            total_errors = int(total_requests * error_rate)
+            avg_latency = 200  # Higher latency due to errors
+        else:
+            # Fake scenario - use simulated metrics
+            requests_per_second = int(100 * multiplier)
+            error_rate = 0.05 * multiplier if scenario_type == 'error' else 0.01
+            total_requests = requests_per_second * duration_seconds
+            total_errors = int(total_requests * error_rate)
+            avg_latency = 50 * multiplier if scenario_type == 'latency' else 50
         
         # Update metrics
         _active_simulations[simulation_id]['metrics'] = {
             'requests_sent': total_requests,
             'errors_generated': total_errors,
-            'avg_latency_ms': int(avg_latency)
+            'avg_latency_ms': int(avg_latency),
+            'actual_error_detected': actual_error_detected,
+            'error_details': actual_error_details
         }
         
         # Create incident if severity is high or critical
         incident_number = None
         if severity in ['high', 'critical']:
-            # Create incident in database
-            incident_data = {
-                'sys_id': str(uuid.uuid4()),
-                'number': f'INC{str(uuid.uuid4())[:8].upper()}',
-                'short_description': f'{scenario_type.title()} issue on {service_id}',
-                'description': f'Simulated {scenario_type} with {severity} severity on {service_id}. Error rate: {error_rate*100:.1f}%',
-                'priority': 1 if severity == 'critical' else 2,
-                'state': '1',  # New
-                'category': 'Performance',
-                'subcategory': scenario_type.title(),
-                'cmdb_ci': service_id,
-                'assignment_group': 'SRE Team',
-                'assigned_to': None,
-                'opened_at': start_time,
-                'updated_at': start_time,
-                'resolved_at': None,
-                'investigation_status': None,
-                'investigation_id': None,
-                'raw_data': {
-                    'simulation_id': simulation_id,
-                    'scenario_type': scenario_type,
-                    'severity': severity
-                },
-                'synced_at': start_time
-            }
-            
-            await crud.create_incident(db, tenant_id, incident_data)
-            incident_number = incident_data['number']
-            
-            _active_simulations[simulation_id]['incident_number'] = incident_number
-            
-            logger.info("simulation_incident_created", simulation_id=simulation_id, incident_number=incident_number)
+            # Create a new database session for the background task
+            from app.db.base import AsyncSessionLocal
+            async with AsyncSessionLocal() as db:
+                # Get ServiceNow integration for this tenant
+                integrations = await crud.get_integrations(db, tenant_id, "servicenow")
+                if not integrations:
+                    logger.warning("no_servicenow_integration_for_simulation", tenant_id=tenant_id)
+                    # Continue without creating incident
+                else:
+                    integration_id = integrations[0].id
+                    
+                    # Create incident description based on service type and actual error
+                    if service_id == 's3-demo-dashboard':
+                        if actual_error_detected:
+                            # Real error detected - create detailed incident
+                            short_desc = f'S3 Website CRITICAL - Demo Dashboard Completely Inaccessible'
+                            description = f'''REAL OUTAGE DETECTED on S3 static website (Demo Dashboard).
+
+Severity: {severity.upper()}
+Service: S3 Demo Dashboard
+Issue Type: {scenario_type.title()}
+Error Rate: {error_rate*100:.1f}%
+
+ACTUAL ERROR DETECTED:
+{actual_error_details}
+
+Website URL: http://cloudscore-demo-dashboard-181080507119.s3-website-us-east-1.amazonaws.com
+
+Symptoms:
+- Website returning errors or completely unreachable
+- Users unable to access dashboard
+- High 4xx/5xx error rates detected
+- Possible S3 configuration issue (public access, bucket policy, or website hosting)
+
+Impact:
+- Dashboard COMPLETELY UNAVAILABLE to all users
+- Monitoring visibility lost
+- Critical business impact
+
+Recommended Immediate Actions:
+1. Check S3 bucket public access block settings
+2. Verify bucket policy allows public read access
+3. Confirm website hosting is enabled
+4. Review recent S3 configuration changes
+5. Check CloudWatch alarms and metrics'''
+                        else:
+                            # Simulated scenario
+                            short_desc = f'S3 Website {scenario_type.title()} - Demo Dashboard Performance Issue'
+                            description = f'''Simulated {scenario_type} issue on S3 static website (Demo Dashboard).
+
+Severity: {severity.upper()}
+Service: S3 Demo Dashboard
+Issue Type: {scenario_type.title()}
+Error Rate: {error_rate*100:.1f}%
+
+Note: This is a SIMULATED incident for testing. Website appears accessible.
+
+Symptoms:
+- Potential performance degradation
+- Simulated error rate increase
+- Testing incident response workflow
+
+Recommended Actions:
+1. Verify S3 bucket configuration
+2. Check CloudWatch logs and metrics
+3. Review website hosting settings'''
+                    else:
+                        short_desc = f'{scenario_type.title()} issue on {service_id}'
+                        description = f'Simulated {scenario_type} with {severity} severity on {service_id}. Error rate: {error_rate*100:.1f}%'
+                    
+                    try:
+                        # Get ServiceNow config
+                        sn_integration = integrations[0]
+                        config_dict = crud.decrypt_integration_config(sn_integration)
+                        
+                        # Create incident in ServiceNow first
+                        import httpx
+                        
+                        snow_incident_data = {
+                            "short_description": short_desc,
+                            "description": description,
+                            "urgency": "1" if severity == 'critical' else "2",
+                            "impact": "1" if severity == 'critical' else "2",
+                            "category": "Infrastructure",
+                            "subcategory": "S3" if service_id == 's3-demo-dashboard' else scenario_type.title(),
+                            "cmdb_ci": service_id,
+                            "assignment_group": "SRE Team",
+                        }
+                        
+                        # Call ServiceNow API to create incident
+                        url = f"https://{config_dict['instance']}.service-now.com/api/now/table/incident"
+                        auth = (config_dict['username'], config_dict['password'])
+                        headers = {
+                            "Content-Type": "application/json",
+                            "Accept": "application/json"
+                        }
+                        
+                        async with httpx.AsyncClient() as client:
+                            response = await client.post(url, json=snow_incident_data, auth=auth, headers=headers, timeout=30.0)
+                            
+                            if response.status_code == 201:
+                                snow_response = response.json()
+                                snow_incident_number = snow_response['result']['number']
+                                snow_sys_id = snow_response['result']['sys_id']
+                                
+                                # Now create in local database with ServiceNow details
+                                incident_data = {
+                                    'sys_id': snow_sys_id,
+                                    'number': snow_incident_number,
+                                    'short_description': short_desc,
+                                    'description': description,
+                                    'priority': 1 if severity == 'critical' else 2,
+                                    'state': '1',  # New
+                                    'category': snow_incident_data['category'],
+                                    'subcategory': snow_incident_data['subcategory'],
+                                    'cmdb_ci': service_id,
+                                    'assignment_group': 'SRE Team',
+                                    'assigned_to': None,
+                                    'opened_at': start_time,
+                                    'updated_at': start_time,
+                                    'resolved_at': None,
+                                    'investigation_status': None,
+                                    'investigation_id': None,
+                                    'raw_data': {
+                                        'simulation_id': simulation_id,
+                                        'scenario_type': scenario_type,
+                                        'severity': severity,
+                                        'service_type': 'static-website',
+                                        'actual_error_detected': actual_error_detected,
+                                        'error_details': actual_error_details
+                                    },
+                                    'synced_at': start_time
+                                }
+                                
+                                # Create incident in local database
+                                await crud.upsert_incident(
+                                    db=db,
+                                    tenant_id=tenant_id,
+                                    integration_id=integration_id,
+                                    incident_data=incident_data
+                                )
+                                
+                                incident_number = snow_incident_number
+                                _active_simulations[simulation_id]['incident_number'] = snow_incident_number
+                                
+                                logger.info("simulation_incident_created_in_servicenow", 
+                                          simulation_id=simulation_id, 
+                                          snow_incident_number=snow_incident_number,
+                                          actual_error=actual_error_detected)
+                            else:
+                                logger.warning("failed_to_create_servicenow_incident", 
+                                             status=response.status_code,
+                                             response=response.text)
+                        
+                    except Exception as snow_error:
+                        logger.error("servicenow_incident_creation_failed", error=str(snow_error))
+                        import traceback
+                        logger.error("incident_creation_traceback", traceback=traceback.format_exc())
         
         # Wait for duration
         await asyncio.sleep(duration_seconds)
@@ -279,6 +455,8 @@ async def run_simulation(
         
     except Exception as e:
         logger.error("simulation_error", simulation_id=simulation_id, error=str(e))
+        import traceback
+        logger.error("simulation_error_traceback", traceback=traceback.format_exc())
         # Mark as failed
         if simulation_id in _active_simulations:
             sim_data = _active_simulations.pop(simulation_id)
@@ -333,8 +511,7 @@ async def trigger_simulation(
             request.service_id,
             request.scenario_type,
             request.severity,
-            request.duration_seconds,
-            db
+            request.duration_seconds
         )
         
         return TriggerSimulationResponse(

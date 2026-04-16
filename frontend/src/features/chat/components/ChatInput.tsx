@@ -77,10 +77,10 @@ export function ChatInput({
   };
 
   return (
-    <div className="border-t bg-background p-4">
+    <div className="bg-background">
       {/* Context chips */}
       {(context?.incident || context?.service_name) && (
-        <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex flex-wrap gap-2 mb-3 px-4">
           {context.incident && (
             <ContextChip
               label={`Incident: ${context.incident.number}`}
@@ -97,7 +97,7 @@ export function ChatInput({
       )}
 
       {/* Input area */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 px-4">
         <div className="flex-1 relative">
           <textarea
             ref={textareaRef}
