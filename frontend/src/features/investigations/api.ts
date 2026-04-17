@@ -45,7 +45,7 @@ export const approveResolution = async (
   id: string,
   approvedBy: string
 ): Promise<Investigation> => {
-  return api.post<Investigation>(`/investigations/${id}/approve`, {
+  return api.post<Investigation>(`/investigations/${id}/approve-resolution`, {
     approved_by: approvedBy,
   });
 };
