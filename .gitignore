@@ -73,3 +73,6 @@ TEST_RESULTS*.md
 # OS
 .DS_Store
 Thumbs.db
+
+# Infrastructure
+infrastructure/
