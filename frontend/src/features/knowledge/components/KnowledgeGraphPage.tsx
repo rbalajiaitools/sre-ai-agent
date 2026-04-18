@@ -12,10 +12,11 @@ import {
   BookOpen,
   User,
   Calendar,
-  Tag
+  Tag,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useKnowledgeList } from '../hooks';
+import { useKnowledgeList, useBulkDeleteKnowledge } from '../hooks';
 import { Knowledge } from '../api';
 import { CreateKnowledgeDialog } from './CreateKnowledgeDialog';
 import { KnowledgeDetailDialog } from './KnowledgeDetailDialog';
@@ -42,8 +43,10 @@ export function KnowledgeGraphPage() {
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedKnowledge, setSelectedKnowledge] = useState<Knowledge | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: allKnowledge, isLoading } = useKnowledgeList(typeFilter || undefined);
+  const bulkDeleteMutation = useBulkDeleteKnowledge();
 
   // Filter by search query
   const filteredKnowledge = allKnowledge?.filter((k) => {
@@ -56,6 +59,43 @@ export function KnowledgeGraphPage() {
     );
   }) || [];
 
+  // Handle select all checkbox
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredKnowledge.map(k => k.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  // Handle individual checkbox
+  const handleSelectOne = (id: string, checked: boolean) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.size} knowledge entr${selectedIds.size === 1 ? 'y' : 'ies'}? This action cannot be undone.`)) {
+      try {
+        await bulkDeleteMutation.mutateAsync(Array.from(selectedIds));
+        setSelectedIds(new Set());
+      } catch (error) {
+        console.error('Failed to delete knowledge:', error);
+      }
+    }
+  };
+
+  const isAllSelected = filteredKnowledge.length > 0 && selectedIds.size === filteredKnowledge.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < filteredKnowledge.length;
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
@@ -67,13 +107,25 @@ export function KnowledgeGraphPage() {
               Runbooks, postmortems, and architectural docs that SRE.ai can reference.
             </p>
           </div>
-          <Button
-            onClick={() => setCreateDialogOpen(true)}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Add Document
-          </Button>
+          <div className="flex items-center gap-3">
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+                className="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-sm font-medium rounded-md transition-colors"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {bulkDeleteMutation.isPending ? 'Deleting...' : `Delete (${selectedIds.size})`}
+              </button>
+            )}
+            <Button
+              onClick={() => setCreateDialogOpen(true)}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Document
+            </Button>
+          </div>
         </div>
 
         {/* Search and Filters */}
@@ -128,66 +180,109 @@ export function KnowledgeGraphPage() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredKnowledge.map((knowledge) => {
-              const Icon = typeIcons[knowledge.type];
-              return (
-                <button
-                  key={knowledge.id}
-                  onClick={() => setSelectedKnowledge(knowledge)}
-                  className="bg-white rounded-lg border border-gray-200 p-4 hover:border-teal-500 hover:shadow-sm transition-all text-left"
-                >
-                  {/* Header */}
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="p-2 bg-gray-100 rounded">
-                      <Icon className="h-5 w-5 text-gray-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
-                        {knowledge.title}
-                      </h3>
-                      {knowledge.description && (
-                        <p className="text-sm text-gray-600 line-clamp-2">
-                          {knowledge.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+          <div className="space-y-4">
+            {/* Select All Checkbox */}
+            <div className="flex items-center gap-2 px-2">
+              <input
+                type="checkbox"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isSomeSelected;
+                }}
+                onChange={(e) => handleSelectAll(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                aria-label="Select all knowledge"
+              />
+              <span className="text-sm text-gray-600">
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+              </span>
+            </div>
 
-                  {/* Tags */}
-                  {knowledge.tags && knowledge.tags.length > 0 && (
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <Tag className="h-3 w-3 text-gray-400" />
-                      {knowledge.tags.slice(0, 4).map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      {knowledge.tags.length > 4 && (
-                        <span className="text-xs text-gray-500">
-                          +{knowledge.tags.length - 4} more
-                        </span>
-                      )}
+            {/* Knowledge Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredKnowledge.map((knowledge) => {
+                const Icon = typeIcons[knowledge.type];
+                const isSelected = selectedIds.has(knowledge.id);
+                return (
+                  <div
+                    key={knowledge.id}
+                    className={`bg-white rounded-lg border ${
+                      isSelected ? 'border-teal-500 ring-2 ring-teal-500' : 'border-gray-200'
+                    } p-4 hover:border-teal-500 hover:shadow-sm transition-all relative`}
+                  >
+                    {/* Checkbox */}
+                    <div className="absolute top-4 right-4">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleSelectOne(knowledge.id, e.target.checked);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        aria-label={`Select ${knowledge.title}`}
+                      />
                     </div>
-                  )}
 
-                  {/* Footer */}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      <span>{knowledge.created_by || 'Unknown'}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>{format(new Date(knowledge.created_at), 'M/d/yyyy')}</span>
-                    </div>
+                    {/* Content - clickable */}
+                    <button
+                      onClick={() => setSelectedKnowledge(knowledge)}
+                      className="w-full text-left pr-8"
+                    >
+                      {/* Header */}
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className="p-2 bg-gray-100 rounded">
+                          <Icon className="h-5 w-5 text-gray-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 mb-1 line-clamp-1">
+                            {knowledge.title}
+                          </h3>
+                          {knowledge.description && (
+                            <p className="text-sm text-gray-600 line-clamp-2">
+                              {knowledge.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Tags */}
+                      {knowledge.tags && knowledge.tags.length > 0 && (
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          <Tag className="h-3 w-3 text-gray-400" />
+                          {knowledge.tags.slice(0, 4).map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {knowledge.tags.length > 4 && (
+                            <span className="text-xs text-gray-500">
+                              +{knowledge.tags.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer */}
+                      <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          <span>{knowledge.created_by || 'Unknown'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          <span>{format(new Date(knowledge.created_at), 'M/d/yyyy')}</span>
+                        </div>
+                      </div>
+                    </button>
                   </div>
-                </button>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

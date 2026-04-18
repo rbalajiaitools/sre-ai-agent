@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Tenant, Integration, Incident, Investigation, ChatThread, ChatMessage
 from app.db.encryption import encrypt_credentials, decrypt_credentials
@@ -310,6 +310,70 @@ async def get_incident_by_number(
         )
     )
     return result.scalar_one_or_none()
+
+
+async def get_incident_by_id(
+    db: AsyncSession,
+    incident_id: str,
+    tenant_id: str
+) -> Optional[Incident]:
+    """Get incident by ID.
+    
+    Args:
+        db: Database session
+        incident_id: Incident ID
+        tenant_id: Tenant ID
+        
+    Returns:
+        Optional[Incident]: Incident or None
+    """
+    result = await db.execute(
+        select(Incident).where(
+            Incident.id == incident_id,
+            Incident.tenant_id == tenant_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_incident_by_sys_id(
+    db: AsyncSession,
+    sys_id: str,
+    tenant_id: str
+) -> Optional[Incident]:
+    """Get incident by ServiceNow sys_id.
+    
+    Args:
+        db: Database session
+        sys_id: ServiceNow sys_id
+        tenant_id: Tenant ID
+        
+    Returns:
+        Optional[Incident]: Incident or None
+    """
+    result = await db.execute(
+        select(Incident).where(
+            Incident.sys_id == sys_id,
+            Incident.tenant_id == tenant_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def delete_incident(
+    db: AsyncSession,
+    incident_id: str
+) -> None:
+    """Delete incident by ID.
+    
+    Args:
+        db: Database session
+        incident_id: Incident ID
+    """
+    await db.execute(
+        delete(Incident).where(Incident.id == incident_id)
+    )
+    await db.commit()
 
 
 # Investigation CRUD

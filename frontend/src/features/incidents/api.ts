@@ -54,3 +54,28 @@ export const startInvestigation = async (
     incident_number: incidentNumber,
   });
 };
+
+/**
+ * Delete a single incident
+ */
+export const deleteIncident = async (
+  incidentId: string,
+  tenantId: string
+): Promise<{ success: boolean; message: string }> => {
+  return api.delete<{ success: boolean; message: string }>(
+    `/incidents/${incidentId}?tenant_id=${tenantId}`
+  );
+};
+
+/**
+ * Delete multiple incidents in bulk
+ */
+export const bulkDeleteIncidents = async (
+  incidentIds: string[],
+  tenantId: string
+): Promise<{ success: boolean; deleted_count: number; failed_count: number; message: string }> => {
+  return api.post<{ success: boolean; deleted_count: number; failed_count: number; message: string }>(
+    `/incidents/bulk-delete?tenant_id=${tenantId}`,
+    { incident_ids: incidentIds }
+  );
+};

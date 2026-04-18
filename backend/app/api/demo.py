@@ -2,8 +2,13 @@
 
 from datetime import datetime, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db.base import get_db
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(tags=["demo"])
 
@@ -129,9 +134,21 @@ class RefreshIncidentsRequest(BaseModel):
 
 
 @router.post("/incidents/refresh")
-async def refresh_incidents(request: RefreshIncidentsRequest):
+async def refresh_incidents(request: RefreshIncidentsRequest, db: AsyncSession = Depends(get_db)):
     """Refresh incidents from ServiceNow."""
-    return {"message": "Incidents refreshed", "count": len(demo_incidents)}
+    from app.api.incidents import get_incidents as get_incidents_real
+    
+    # Call the real incidents endpoint with refresh=true
+    try:
+        incidents = await get_incidents_real(
+            tenant_id=request.tenant_id,
+            refresh=True,
+            db=db
+        )
+        return {"message": "Incidents refreshed from ServiceNow", "count": len(incidents)}
+    except Exception as e:
+        logger.error("refresh_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to refresh incidents: {str(e)}")
 
 
 @router.post("/incidents/{incident_number}/investigate")

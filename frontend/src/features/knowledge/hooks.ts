@@ -61,6 +61,17 @@ export function useDeleteKnowledge() {
   });
 }
 
+export function useBulkDeleteKnowledge() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (knowledgeIds: string[]) => api.bulkDeleteKnowledge(knowledgeIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledge'] });
+    },
+  });
+}
+
 export function useConvertInvestigation() {
   const queryClient = useQueryClient();
   const tenant = useTenant();

@@ -3,9 +3,9 @@
  */
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { RefreshCw, Loader2, Search, AlertCircle } from 'lucide-react';
+import { RefreshCw, Loader2, Search, AlertCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useIncidents, useRefreshIncidents } from '../hooks';
+import { useIncidents, useRefreshIncidents, useDeleteIncident, useBulkDeleteIncidents } from '../hooks';
 import { ServiceNowIncident } from '../types';
 import { IncidentPriority, IncidentState } from '@/types';
 import { IncidentDetailPanel } from './IncidentDetailPanel';
@@ -16,9 +16,12 @@ export function IncidentsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>('');
   const [stateFilter, setStateFilter] = useState<string>('');
   const [selectedIncident, setSelectedIncident] = useState<ServiceNowIncident | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: allIncidents, isLoading, isError } = useIncidents();
   const refreshMutation = useRefreshIncidents();
+  const deleteMutation = useDeleteIncident();
+  const bulkDeleteMutation = useBulkDeleteIncidents();
 
   // Apply filters
   const filteredIncidents = allIncidents?.filter((incident) => {
@@ -43,6 +46,39 @@ export function IncidentsPage() {
 
   const handleCloseDetail = () => {
     setSelectedIncident(null);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(filteredIncidents.map(i => i.sys_id));
+      setSelectedIds(allIds);
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectOne = (incidentId: string, checked: boolean) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(incidentId);
+    } else {
+      newSelected.delete(incidentId);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.size} incident(s)? This action cannot be undone.`)) {
+      try {
+        await bulkDeleteMutation.mutateAsync(Array.from(selectedIds));
+        setSelectedIds(new Set());
+        setSelectedIncident(null);
+      } catch (error) {
+        console.error('Failed to delete incidents:', error);
+      }
+    }
   };
 
   const getPriorityBadge = (priority: IncidentPriority) => {
@@ -176,6 +212,18 @@ export function IncidentsPage() {
 
         {/* Search and Filters */}
         <div className="flex items-center gap-3">
+          {selectedIds.size > 0 && (
+            <Button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+              variant="destructive"
+              size="sm"
+              className="gap-2"
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete ({selectedIds.size})
+            </Button>
+          )}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
@@ -232,6 +280,14 @@ export function IncidentsPage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-muted border-b border-gray-200">
+                    <th className="w-12 px-6 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === filteredIncidents.length && filteredIncidents.length > 0}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        className="rounded border-gray-300"
+                      />
+                    </th>
                     <th className="text-left px-6 py-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
                       Number
                     </th>
@@ -256,36 +312,43 @@ export function IncidentsPage() {
                   {filteredIncidents.map((incident) => (
                     <tr
                       key={incident.sys_id}
-                      onClick={() => handleIncidentClick(incident)}
                       className={cn(
-                        "hover:bg-muted/50 cursor-pointer transition-colors",
+                        "hover:bg-muted/50 transition-colors",
                         selectedIncident?.sys_id === incident.sys_id && "bg-muted/50"
                       )}
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(incident.sys_id)}
+                          onChange={(e) => handleSelectOne(incident.sys_id, e.target.checked)}
+                          className="rounded border-gray-300"
+                        />
+                      </td>
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => handleIncidentClick(incident)}>
                         <span className="font-mono text-sm font-medium text-gray-900">
                           {incident.number}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => handleIncidentClick(incident)}>
                         <div className="max-w-md">
                           <p className="text-sm text-gray-900 truncate">
                             {incident.short_description}
                           </p>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => handleIncidentClick(incident)}>
                         {getPriorityBadge(incident.priority)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => handleIncidentClick(incident)}>
                         {getStateBadge(incident.state)}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => handleIncidentClick(incident)}>
                         <span className="text-sm text-gray-600">
                           {incident.cmdb_ci || '-'}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 cursor-pointer" onClick={() => handleIncidentClick(incident)}>
                         <span className="text-sm text-gray-600">
                           {format(new Date(incident.opened_at), 'MMM dd, hh:mm a')}
                         </span>

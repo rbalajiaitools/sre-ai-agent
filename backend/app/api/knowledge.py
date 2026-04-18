@@ -78,6 +78,11 @@ class SearchKnowledgeRequest(BaseModel):
     limit: int = 5
 
 
+class BulkDeleteRequest(BaseModel):
+    """Bulk delete knowledge request."""
+    knowledge_ids: List[str]
+
+
 # Endpoints
 @router.post("/", response_model=KnowledgeResponse)
 async def create_knowledge(
@@ -236,6 +241,33 @@ async def delete_knowledge(
         raise HTTPException(status_code=404, detail="Knowledge not found")
     
     return {"message": "Knowledge deleted successfully"}
+
+
+@router.post("/bulk-delete")
+async def bulk_delete_knowledge(
+    request: BulkDeleteRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete multiple knowledge entries in bulk."""
+    deleted_count = 0
+    failed_count = 0
+    
+    for knowledge_id in request.knowledge_ids:
+        try:
+            success = await crud.delete_knowledge(db, knowledge_id)
+            if success:
+                deleted_count += 1
+            else:
+                failed_count += 1
+        except Exception:
+            failed_count += 1
+    
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "failed_count": failed_count,
+        "message": f"Deleted {deleted_count} knowledge entries, {failed_count} failed"
+    }
 
 
 @router.post("/convert-investigation", response_model=KnowledgeResponse)

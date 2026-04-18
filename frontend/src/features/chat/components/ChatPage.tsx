@@ -103,6 +103,7 @@ export function ChatPage() {
     // If no active thread, create one first
     if (!threadId) {
       setPendingMessage({ content: prompt, context });
+      // Show immediate feedback by setting a loading state
       createThreadMutation.mutate(undefined);
     } else {
       // Already have a thread, just send the message
@@ -377,6 +378,16 @@ export function ChatPage() {
             ) : (
               /* Empty state - show welcome message and prompts */
               <div className="flex flex-col items-center justify-start pt-16">
+                {/* Loading overlay when creating thread */}
+                {createThreadMutation.isPending && (
+                  <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="flex flex-col items-center gap-4">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">Creating chat...</p>
+                    </div>
+                  </div>
+                )}
+                
                 {/* Header with icon */}
                 <div className="flex items-center justify-center mb-6">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
@@ -401,8 +412,11 @@ export function ChatPage() {
                       key={index}
                       onClick={() => handlePromptClick(prompt)}
                       disabled={createThreadMutation.isPending || sendMutationResult.isPending}
-                      className="p-4 text-left border border-border rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="p-4 text-left border border-border rounded-lg hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     >
+                      {(createThreadMutation.isPending || sendMutationResult.isPending) && (
+                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                      )}
                       <p className="text-sm">{prompt}</p>
                     </button>
                   ))}

@@ -1500,7 +1500,7 @@ async def send_chat_message_real(
             if is_investigation_request and incident_number_match:
                 logger.info("investigation_requested", incident_number=incident_number_match, has_attached_incident=bool(attached_incident))
                 
-                # Use attached incident if available, otherwise fetch from ServiceNow
+                # Use attached incident if available, otherwise fetch from database
                 incident = None
                 
                 if attached_incident and isinstance(attached_incident, dict):
@@ -1510,22 +1510,49 @@ async def send_chat_message_real(
                     from types import SimpleNamespace
                     incident = SimpleNamespace(**attached_incident)
                 else:
-                    # Fetch from ServiceNow
-                    sn_integrations = await crud.get_integrations(db, tenant_id, "servicenow")
-                    
-                    if sn_integrations:
-                        connector = get_servicenow_connector()
+                    # First, try to fetch from local database
+                    try:
+                        db_incidents = await crud.get_incidents(db, tenant_id)
+                        incident_data = next((inc for inc in db_incidents if inc.number == incident_number_match), None)
                         
-                        try:
-                            from uuid import UUID
-                            tenant_uuid = UUID(tenant_id)
-                            incident = await connector.get_incident(
-                                tenant_id=tenant_uuid,
-                                incident_number=incident_number_match
+                        if incident_data:
+                            logger.info("incident_found_in_database", incident_number=incident_number_match)
+                            # Convert to SimpleNamespace for consistent access
+                            from types import SimpleNamespace
+                            incident = SimpleNamespace(
+                                number=incident_data.number,
+                                short_description=incident_data.short_description,
+                                description=incident_data.description,
+                                priority=incident_data.priority,
+                                state=incident_data.state,
+                                sys_id=incident_data.sys_id,
+                                cmdb_ci=incident_data.cmdb_ci,
+                                opened_at=incident_data.opened_at,
+                                updated_at=incident_data.updated_at
                             )
-                        except Exception as e:
-                            logger.error("servicenow_fetch_error", error=str(e))
-                            incident = None
+                        else:
+                            logger.warning("incident_not_found_in_database", incident_number=incident_number_match)
+                            
+                            # Fallback: Try to fetch from ServiceNow
+                            sn_integrations = await crud.get_integrations(db, tenant_id, "servicenow")
+                            
+                            if sn_integrations:
+                                connector = get_servicenow_connector()
+                                
+                                try:
+                                    from uuid import UUID
+                                    tenant_uuid = UUID(tenant_id)
+                                    incident = await connector.get_incident(
+                                        tenant_id=tenant_uuid,
+                                        incident_number=incident_number_match
+                                    )
+                                    logger.info("incident_fetched_from_servicenow", incident_number=incident_number_match)
+                                except Exception as e:
+                                    logger.error("servicenow_fetch_error", error=str(e))
+                                    incident = None
+                    except Exception as e:
+                        logger.error("incident_fetch_error", error=str(e))
+                        incident = None
                 
                 if incident:
                     # Create investigation
@@ -1914,7 +1941,80 @@ Note: No AWS integration configured. Please ask the user to configure AWS creden
             response = client.chat.completions.create(
                 model=settings.llm.azure_openai_deployment_name,
                 messages=[
-                    {"role": "system", "content": "You are Astra AI, an expert SRE assistant. Help users with their AWS infrastructure, incidents, and operations. Be concise and actionable."},
+                    {"role": "system", "content": """You are Astra AI, an expert SRE assistant with access to AWS infrastructure data.
+
+CRITICAL INSTRUCTIONS:
+- ALWAYS show actual configurations, values, and commands - NEVER give generic instructions
+- When asked about ANY AWS service (EC2, RDS, Lambda, S3, VPC, ECS, EKS, CloudWatch, etc.), fetch and display the actual configuration details
+- Format responses with actual resource names, IDs, ARNs, IP addresses, security groups, and all settings
+- Include AWS CLI commands with actual resource identifiers filled in (not placeholders)
+- Show configuration blocks with real values from the user's account
+- Present data in structured format: tables, code blocks, YAML/JSON configs
+- Include relevant details: tags, networking, security settings, monitoring configs
+- Be concise but show complete configuration details
+- Focus on actionable information with real values from their infrastructure
+
+For ANY service query, show:
+1. Resource identifiers (names, IDs, ARNs)
+2. Current configuration/settings
+3. Network configuration (VPC, subnets, security groups, IPs)
+4. AWS CLI commands with actual values
+5. Relevant tags and metadata
+
+Examples of GOOD responses:
+
+EC2 Query:
+"Instance Details:
+Instance ID: i-0abc123def456
+Instance Type: t3.medium
+State: running
+Private IP: 10.0.1.45
+Public IP: 54.123.45.67
+VPC: vpc-0123456
+Subnet: subnet-abc123
+Security Groups: sg-web-server (sg-0987654)
+
+AWS CLI Commands:
+aws ec2 describe-instances --instance-ids i-0abc123def456
+aws ec2 describe-security-groups --group-ids sg-0987654"
+
+RDS Query:
+"Database Configuration:
+DB Identifier: production-mysql-db
+Engine: MySQL 8.0.35
+Instance Class: db.t3.large
+Status: available
+Endpoint: production-mysql-db.abc123.us-east-1.rds.amazonaws.com:3306
+VPC: vpc-0123456
+Multi-AZ: Enabled
+Backup Retention: 7 days
+
+AWS CLI Commands:
+aws rds describe-db-instances --db-instance-identifier production-mysql-db"
+
+Lambda Query:
+"Function Configuration:
+Function Name: process-orders
+Runtime: python3.11
+Memory: 512 MB
+Timeout: 30 seconds
+Last Modified: 2026-04-15
+Role: arn:aws:iam::123456789012:role/lambda-execution-role
+
+Environment Variables:
+DB_HOST=production-mysql-db.abc123.us-east-1.rds.amazonaws.com
+API_KEY=***hidden***
+
+AWS CLI Commands:
+aws lambda get-function --function-name process-orders
+aws lambda get-function-configuration --function-name process-orders"
+
+Examples of BAD responses (NEVER do this):
+"To view EC2 instances, you can use the describe-instances command..."
+"You should check your RDS configuration in the AWS console..."
+"Lambda functions can be viewed using AWS CLI..."
+
+ALWAYS show the actual data, not instructions on how to get it."""},
                     {"role": "user", "content": ai_prompt}
                 ],
                 temperature=0.7,

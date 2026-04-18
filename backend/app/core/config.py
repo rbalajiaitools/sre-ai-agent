@@ -164,6 +164,11 @@ class Settings(BaseSettings):
     servicenow_username: str | None = Field(default=None, validation_alias="SERVICENOW_USERNAME")
     servicenow_password: str | None = Field(default=None, validation_alias="SERVICENOW_PASSWORD")
     
+    # ServiceNow Incident Filtering
+    servicenow_incident_filter_mode: str = Field(default="date", validation_alias="SERVICENOW_INCIDENT_FILTER_MODE")
+    servicenow_incident_filter_date: str = Field(default="2026-04-01", validation_alias="SERVICENOW_INCIDENT_FILTER_DATE")
+    servicenow_incident_filter_numbers: str = Field(default="", validation_alias="SERVICENOW_INCIDENT_FILTER_NUMBERS")
+    
     # AWS settings
     aws_default_region: str = Field(default="us-east-1", validation_alias="AWS_DEFAULT_REGION")
 

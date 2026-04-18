@@ -10,6 +10,8 @@ import {
   getIncident,
   refreshIncidents,
   startInvestigation,
+  deleteIncident,
+  bulkDeleteIncidents,
 } from './api';
 import { IncidentFilter } from './types';
 
@@ -87,6 +89,43 @@ export function useStartInvestigation() {
 
       // Navigate to investigations page with the investigation selected
       navigate(`/investigations/${data.investigation_id}`);
+    },
+  });
+}
+
+
+/**
+ * Hook to delete a single incident
+ */
+export function useDeleteIncident() {
+  const queryClient = useQueryClient();
+  const tenant = useTenant();
+
+  return useMutation({
+    mutationFn: (incidentId: string) => deleteIncident(incidentId, tenant!.id),
+    onSuccess: () => {
+      // Invalidate incidents list
+      queryClient.invalidateQueries({
+        queryKey: ['incidents'],
+      });
+    },
+  });
+}
+
+/**
+ * Hook to delete multiple incidents
+ */
+export function useBulkDeleteIncidents() {
+  const queryClient = useQueryClient();
+  const tenant = useTenant();
+
+  return useMutation({
+    mutationFn: (incidentIds: string[]) => bulkDeleteIncidents(incidentIds, tenant!.id),
+    onSuccess: () => {
+      // Invalidate incidents list
+      queryClient.invalidateQueries({
+        queryKey: ['incidents'],
+      });
     },
   });
 }

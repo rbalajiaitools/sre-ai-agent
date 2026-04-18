@@ -211,25 +211,34 @@ class ServiceNowClient:
         # Build query string
         query_parts = []
 
-        # Filter by states
-        if filters.states:
-            state_values = [state.value for state in filters.states]
-            query_parts.append(f"stateIN{','.join(state_values)}")
+        # Filter by specific incident numbers (highest priority)
+        if filters.incident_numbers:
+            numbers = ",".join(filters.incident_numbers)
+            query_parts.append(f"numberIN{numbers}")
+        # Use custom query if provided
+        elif filters.custom_query:
+            query_parts.append(filters.custom_query)
+        else:
+            # Default filters
+            # Filter by states
+            if filters.states:
+                state_values = [state.value for state in filters.states]
+                query_parts.append(f"stateIN{','.join(state_values)}")
 
-        # Filter by priorities
-        if filters.priorities:
-            priority_values = [p.value for p in filters.priorities]
-            query_parts.append(f"priorityIN{','.join(priority_values)}")
+            # Filter by priorities
+            if filters.priorities:
+                priority_values = [p.value for p in filters.priorities]
+                query_parts.append(f"priorityIN{','.join(priority_values)}")
 
-        # Filter by assignment groups
-        if filters.assignment_groups:
-            groups = ",".join(filters.assignment_groups)
-            query_parts.append(f"assignment_group.nameIN{groups}")
+            # Filter by assignment groups
+            if filters.assignment_groups:
+                groups = ",".join(filters.assignment_groups)
+                query_parts.append(f"assignment_group.nameIN{groups}")
 
-        # Filter by update time
-        if filters.updated_after:
-            timestamp = filters.updated_after.strftime("%Y-%m-%d %H:%M:%S")
-            query_parts.append(f"sys_updated_on>{timestamp}")
+            # Filter by update time
+            if filters.updated_after:
+                timestamp = filters.updated_after.strftime("%Y-%m-%d %H:%M:%S")
+                query_parts.append(f"sys_updated_on>{timestamp}")
 
         if query_parts:
             params["sysparm_query"] = "^".join(query_parts)
@@ -390,6 +399,27 @@ class ServiceNowClient:
                 "close_notes": notes,
             },
         )
+
+    async def delete_incident(self, incident_id: str) -> bool:
+        """Delete an incident from ServiceNow.
+
+        Args:
+            incident_id: Incident sys_id
+
+        Returns:
+            True if successful
+        """
+        logger.info("deleting_servicenow_incident", incident_id=incident_id)
+
+        try:
+            response = await self._request(
+                method="DELETE",
+                endpoint=f"/table/incident/{incident_id}",
+            )
+            return response.status_code == 204
+        except Exception as e:
+            logger.error("delete_incident_failed", incident_id=incident_id, error=str(e))
+            return False
 
     async def close(self) -> None:
         """Close the client and cleanup resources."""

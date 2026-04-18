@@ -92,6 +92,17 @@ export async function deleteKnowledge(knowledgeId: string): Promise<void> {
   return api.delete(`/knowledge/${knowledgeId}`);
 }
 
+export async function bulkDeleteKnowledge(
+  knowledgeIds: string[]
+): Promise<{ success: boolean; deleted_count: number; failed_count: number; message: string }> {
+  return api.post<{ success: boolean; deleted_count: number; failed_count: number; message: string }>(
+    '/knowledge/bulk-delete',
+    {
+      knowledge_ids: knowledgeIds,
+    }
+  );
+}
+
 export async function convertInvestigationToKnowledge(
   tenantId: string,
   data: ConvertInvestigationRequest

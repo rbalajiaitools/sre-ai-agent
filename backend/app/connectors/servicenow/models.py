@@ -75,6 +75,12 @@ class IncidentFilter(BaseSchema):
     assignment_groups: List[str] = Field(
         default_factory=list, description="Filter by assignment groups"
     )
+    incident_numbers: List[str] = Field(
+        default_factory=list, description="Filter by specific incident numbers"
+    )
+    custom_query: Optional[str] = Field(
+        default=None, description="Custom ServiceNow query string"
+    )
     limit: int = Field(default=50, description="Maximum results to return")
 
 
