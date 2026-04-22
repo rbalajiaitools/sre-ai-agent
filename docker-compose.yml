@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: astra-postgres
+    environment:
+      POSTGRES_USER: astra_user
+      POSTGRES_PASSWORD: astra_password
+      POSTGRES_DB: astra_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astra_user -d astra_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - astra-network
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: astra-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - astra-network
+
+  # Kafka for event streaming
+  kafka:
+    image: apache/kafka:3.9.2
+    container_name: astra-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions.sh --bootstrap-server localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - astra-network
+
+  # Temporal for workflow orchestration
+  temporal:
+    image: temporalio/auto-setup:1.29.5
+    container_name: astra-temporal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=astra_user
+      - POSTGRES_PWD=astra_password
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./temporal-config:/etc/temporal/config/dynamicconfig
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "temporal:7233", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - astra-network
+
+  # Temporal UI
+  temporal-ui:
+    image: temporalio/ui:2.48.1
+    container_name: astra-temporal-ui
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
+    ports:
+      - "8233:8080"
+    networks:
+      - astra-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+
+networks:
+  astra-network:
+    driver: bridge
